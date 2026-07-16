@@ -1,0 +1,35 @@
+:root {
+  --kalm-sage: #8f9f8c;
+  --kalm-sage-light: #9ead98;
+  --kalm-warm-beige: #e6d6bf;
+  --kalm-sand: #c8b596;
+  --kalm-coffee: #3a2a22;
+  --kalm-charcoal: #1f1b18;
+  --kalm-off-white: #f7f2ea;
+  --kalm-focus: #2f6f77;
+  --kalm-danger: #a64035;
+  color-scheme: light;
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--kalm-off-white);
+  color: var(--kalm-charcoal);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--kalm-focus);
+  outline-offset: 3px;
+}

@@ -1,18 +1,59 @@
-# Kalm SRD Pack
+# Kalm Cafe Management System
 
-This package is intended to be placed at the root of the Kalm Cafe Management System repository before asking Codex to implement the application.
+Kalm is a modular monolith cafe POS and operations system for Kalm Specialty Coffee.
 
-Files:
+This repository is currently at **Milestone 0 - Foundation**. It contains the runnable foundation only: .NET API host, PostgreSQL wiring, initial platform migration, Problem Details, correlation IDs, health endpoints, authentication skeleton contract, Angular bilingual shell, Docker Compose, CI, and test projects.
 
-- `KALM_SRD.md`: complete product and technical requirements.
-- `AGENTS.md`: mandatory coding and repository instructions.
-- `CODEX_MASTER_PROMPT.md`: prompt to start and control Codex implementation.
-- `KALM_SRD.docx`: formatted copy for review and sharing.
+Milestone 1 business features are intentionally not implemented yet.
 
-Recommended use:
+## Required Toolchain
 
-1. Create an empty Git repository.
-2. Add these files at the repository root.
-3. Open the repository with Codex.
-4. Paste the contents of `CODEX_MASTER_PROMPT.md` as the first task.
-5. Ask Codex to complete one milestone at a time and commit after a clean quality gate.
+- .NET SDK 10.0.302, or a compatible 10.0.300 feature-band SDK.
+- Node.js 24.18.0 LTS with npm 11.17.0.
+- Docker with Docker Compose.
+
+## Backend
+
+```bash
+docker compose up -d postgres
+dotnet restore Kalm.slnx
+dotnet format Kalm.slnx --verify-no-changes --no-restore
+dotnet build Kalm.slnx --no-restore -m:1
+dotnet test tests/Unit/Kalm.UnitTests/Kalm.UnitTests.csproj --no-build
+dotnet test tests/Architecture/Kalm.ArchitectureTests/Kalm.ArchitectureTests.csproj --no-build
+dotnet test tests/Integration/Kalm.Api.IntegrationTests/Kalm.Api.IntegrationTests.csproj --no-build
+dotnet run --project src/Kalm.Api
+```
+
+Health endpoints:
+
+- `GET /health/live`
+- `GET /health/ready`
+
+Authentication skeleton endpoints:
+
+- `GET /api/v1/auth/me`
+- `POST /api/v1/auth/login`
+
+The login endpoint returns a stable `iam.not_configured` Problem Details response until Milestone 1 implements real credential validation.
+
+## Frontend
+
+```bash
+cd apps/web
+npm ci
+npm run lint
+npm run test
+npm run build
+npm start
+```
+
+The Angular shell is standalone, strict, zoneless, and supports English LTR and Arabic RTL.
+
+## Documentation
+
+- Requirements: `KALM_SRD.md`
+- Contributor instructions: `AGENTS.md`
+- Implementation status: `docs/product/implementation-status.md`
+- Architecture decisions: `docs/adr/`
+- Local development guide: `docs/operations/local-development.md`

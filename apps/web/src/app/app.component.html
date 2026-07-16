@@ -1,0 +1,46 @@
+<div class="shell" [attr.dir]="viewModel().direction" [attr.lang]="viewModel().language">
+  <mat-toolbar class="topbar" color="primary">
+    <span class="brand">{{ viewModel().copy.brand }}</span>
+    <span class="spacer"></span>
+    <span class="status">{{ viewModel().copy.sessionState }}</span>
+    <div class="language-toggle" [attr.aria-label]="viewModel().copy.languageToggleLabel">
+      <button
+        type="button"
+        mat-button
+        [class.active]="viewModel().language === 'en'"
+        (click)="setLanguage('en')">
+        EN
+      </button>
+      <button
+        type="button"
+        mat-button
+        [class.active]="viewModel().language === 'ar'"
+        (click)="setLanguage('ar')">
+        AR
+      </button>
+    </div>
+  </mat-toolbar>
+
+  <main class="content">
+    <section class="panel" aria-labelledby="shell-title">
+      <p class="eyebrow">{{ viewModel().copy.location }}</p>
+      <h1 id="shell-title">{{ viewModel().copy.heading }}</h1>
+      <p class="summary">{{ viewModel().copy.summary }}</p>
+
+      <dl class="readiness">
+        <div>
+          <dt>{{ viewModel().copy.apiLabel }}</dt>
+          <dd>{{ viewModel().copy.apiValue }}</dd>
+        </div>
+        <div>
+          <dt>{{ viewModel().copy.accessLabel }}</dt>
+          <dd>{{ viewModel().copy.accessValue }}</dd>
+        </div>
+        <div>
+          <dt>{{ viewModel().copy.languageLabel }}</dt>
+          <dd>{{ viewModel().copy.languageValue }}</dd>
+        </div>
+      </dl>
+    </section>
+  </main>
+</div>

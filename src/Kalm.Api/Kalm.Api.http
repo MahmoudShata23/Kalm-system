@@ -1,0 +1,6 @@
+@Kalm.Api_HostAddress = http://localhost:5081
+
+GET {{Kalm.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

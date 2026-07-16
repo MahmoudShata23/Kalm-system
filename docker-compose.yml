@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:18.4
+    container_name: kalm-postgres
+    environment:
+      POSTGRES_DB: kalm
+      POSTGRES_USER: kalm
+      POSTGRES_PASSWORD: kalm_dev_password
+    ports:
+      - "54329:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kalm -d kalm"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - kalm_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  kalm_postgres_data:

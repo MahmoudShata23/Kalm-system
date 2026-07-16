@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Kalm.SharedKernel\Kalm.SharedKernel.csproj" />
+  </ItemGroup>
+
+</Project>
