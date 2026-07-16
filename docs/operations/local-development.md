@@ -2,8 +2,8 @@
 
 ## Prerequisites
 
-- .NET SDK 10.0.302 or a compatible 10.0.300 feature-band SDK.
-- Node.js 24.18.0 LTS with npm 11.17.0.
+- .NET SDK 10.0.302.
+- Node.js 24.18.0 LTS with its bundled npm 11.16.0.
 - Docker with Docker Compose.
 
 ## Backend
@@ -48,3 +48,6 @@ The local PostgreSQL service uses:
 - User: `kalm`
 
 The password is development-only and defined in `docker-compose.yml`.
+
+Production and staging connection strings must be supplied through environment variables, user secrets, or a
+secret manager. The root `appsettings.json` intentionally does not contain a usable database password.

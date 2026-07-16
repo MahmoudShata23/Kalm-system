@@ -8,8 +8,8 @@ Milestone 1 business features are intentionally not implemented yet.
 
 ## Required Toolchain
 
-- .NET SDK 10.0.302, or a compatible 10.0.300 feature-band SDK.
-- Node.js 24.18.0 LTS with npm 11.17.0.
+- .NET SDK 10.0.302.
+- Node.js 24.18.0 LTS with its bundled npm 11.16.0.
 - Docker with Docker Compose.
 
 ## Backend
@@ -36,6 +36,10 @@ Authentication skeleton endpoints:
 - `POST /api/v1/auth/login`
 
 The login endpoint returns a stable `iam.not_configured` Problem Details response until Milestone 1 implements real credential validation.
+
+For non-development environments, provide the database connection string through configuration such as the
+`Database__ConnectionString` environment variable or a secret manager. Development defaults for the local
+Docker database are kept in `appsettings.Development.json` only.
 
 ## Frontend
 
