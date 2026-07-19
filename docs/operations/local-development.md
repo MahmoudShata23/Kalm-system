@@ -10,11 +10,18 @@
 
 ```bash
 docker compose up -d postgres
+docker compose ps
+docker compose exec -T postgres pg_isready -U kalm -d kalm
+dotnet tool restore
 dotnet restore Kalm.slnx
-dotnet build Kalm.slnx -m:1
+deploy\scripts\check-nuget-audit.cmd
+dotnet format Kalm.slnx --verify-no-changes --no-restore
+dotnet build Kalm.slnx --configuration Release --no-restore -m:1
 dotnet test tests/Unit/Kalm.UnitTests/Kalm.UnitTests.csproj --no-build
 dotnet test tests/Architecture/Kalm.ArchitectureTests/Kalm.ArchitectureTests.csproj --no-build
 dotnet test tests/Integration/Kalm.Api.IntegrationTests/Kalm.Api.IntegrationTests.csproj --no-build
+deploy\scripts\validate-migrations.cmd
+dotnet tool run dotnet-ef database update --project src/Kalm.Api --startup-project src/Kalm.Api --context KalmDbContext
 dotnet run --project src/Kalm.Api
 ```
 
@@ -25,18 +32,26 @@ Health endpoints:
 
 The readiness endpoint checks the configured PostgreSQL connection.
 
+On Windows, `Test-NetConnection 127.0.0.1 -Port 54329` verifies the host port after the container becomes healthy.
+
+The design-time EF connection defaults only to the local Docker database. Set `KALM_DATABASE_CONNECTION_STRING` when an explicitly different design-time target is required. Runtime configuration continues to use `Database__ConnectionString` or another standard .NET configuration provider.
+
 ## Frontend
 
 ```bash
 cd apps/web
-npm ci
-npm run lint
-npm run test
-npm run build
-npm start
+npm.cmd ci
+npm.cmd run lint
+npm.cmd run test
+npm.cmd run build
+npm.cmd exec playwright install chromium
+npm.cmd run e2e
+npm.cmd start
 ```
 
 Open `http://127.0.0.1:4200`.
+
+Use `npm.cmd` on this Windows machine because the PowerShell policy blocks the unsigned `npm.ps1` shim. Do not change the machine execution policy. CI and non-Windows shells use `npm`.
 
 ## Development Database
 
@@ -48,6 +63,52 @@ The local PostgreSQL service uses:
 - User: `kalm`
 
 The password is development-only and defined in `docker-compose.yml`.
+
+PostgreSQL 18 stores its versioned data beneath the volume mounted at `/var/lib/postgresql`. Do not change the mount back to `/var/lib/postgresql/data`.
+
+## Migration validation
+
+Apply the migration to the local development database:
+
+```text
+dotnet tool run dotnet-ef database update --project src/Kalm.Api --startup-project src/Kalm.Api --context KalmDbContext
+```
+
+Validate it against a newly created isolated PostgreSQL database, including the migration history and expected platform tables:
+
+```text
+deploy\scripts\validate-migrations.cmd
+```
+
+## OpenAPI snapshot
+
+```text
+deploy\scripts\openapi.cmd generate
+deploy\scripts\openapi.cmd check
+```
+
+`generate` updates `contracts/openapi/kalm-api.v1.json`. `check` fails when the runtime contract differs from the committed file and is also run in CI.
+
+## Development reset and seed
+
+```text
+deploy\scripts\reset-development.cmd --force
+```
+
+The command is deliberately guarded and targets only `kalm` on `127.0.0.1:54329`. It drops the database, recreates it through EF migrations, and then completes an intentionally empty Milestone 0 seed phase. No users, credentials, or cafe business data are created.
+
+## Dependency and CI security checks
+
+```text
+deploy\scripts\check-nuget-audit.cmd
+cd apps/web
+npm.cmd audit --audit-level=high
+```
+
+NuGet restore audits direct and transitive dependencies. High and critical findings (`NU1903` and `NU1904`) are
+treated as errors; lower-severity findings do not block Milestone 0. CI additionally runs Gitleaks against committed
+content and Trivy against `postgres:18.4`. These remote-only action steps require the GitHub runner's network and
+Docker environment.
 
 Production and staging connection strings must be supplied through environment variables, user secrets, or a
 secret manager. The root `appsettings.json` intentionally does not contain a usable database password.

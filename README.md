@@ -2,7 +2,7 @@
 
 Kalm is a modular monolith cafe POS and operations system for Kalm Specialty Coffee.
 
-This repository is currently at **Milestone 0 - Foundation**. It contains the runnable foundation only: .NET API host, PostgreSQL wiring, initial platform migration, Problem Details, correlation IDs, health endpoints, authentication skeleton contract, Angular bilingual shell, Docker Compose, CI, and test projects.
+This repository has completed the locally verified **Milestone 0 - Foundation** implementation. It contains the runnable foundation only: .NET API host, PostgreSQL wiring, initial platform migration, Problem Details, correlation IDs, health endpoints, authentication skeleton contract, Angular bilingual shell, Docker Compose, CI, contracts, and test projects.
 
 Milestone 1 business features are intentionally not implemented yet.
 
@@ -16,12 +16,18 @@ Milestone 1 business features are intentionally not implemented yet.
 
 ```bash
 docker compose up -d postgres
+docker compose ps
+docker compose exec -T postgres pg_isready -U kalm -d kalm
+dotnet tool restore
 dotnet restore Kalm.slnx
+deploy\scripts\check-nuget-audit.cmd
 dotnet format Kalm.slnx --verify-no-changes --no-restore
 dotnet build Kalm.slnx --no-restore -m:1
 dotnet test tests/Unit/Kalm.UnitTests/Kalm.UnitTests.csproj --no-build
 dotnet test tests/Architecture/Kalm.ArchitectureTests/Kalm.ArchitectureTests.csproj --no-build
 dotnet test tests/Integration/Kalm.Api.IntegrationTests/Kalm.Api.IntegrationTests.csproj --no-build
+deploy\scripts\validate-migrations.cmd
+dotnet tool run dotnet-ef database update --project src/Kalm.Api --startup-project src/Kalm.Api --context KalmDbContext
 dotnet run --project src/Kalm.Api
 ```
 
@@ -45,14 +51,43 @@ Docker database are kept in `appsettings.Development.json` only.
 
 ```bash
 cd apps/web
-npm ci
-npm run lint
-npm run test
-npm run build
-npm start
+npm.cmd ci
+npm.cmd run lint
+npm.cmd run test
+npm.cmd run build
+npm.cmd exec playwright install chromium
+npm.cmd run e2e
+npm.cmd start
 ```
 
 The Angular shell is standalone, strict, zoneless, and supports English LTR and Arabic RTL.
+
+This machine's PowerShell policy blocks the unsigned `npm.ps1` shim. Use `npm.cmd` as shown; do not change the machine execution policy. Linux/macOS and CI use `npm` normally.
+
+NuGet restore audits direct and transitive dependencies. High and critical findings (`NU1903` and `NU1904`) fail the
+restore; lower-severity findings do not block Milestone 0. Run `deploy\scripts\check-nuget-audit.cmd` locally to
+apply the same policy as CI.
+
+## OpenAPI contract
+
+The committed API snapshot is `contracts/openapi/kalm-api.v1.json`.
+
+```text
+deploy\scripts\openapi.cmd generate
+deploy\scripts\openapi.cmd check
+```
+
+Generation is deterministic and the CI check fails when the runtime document differs from the committed snapshot.
+
+## Development reset and seed
+
+The guarded workflow below deletes and recreates only the local `kalm` database at `127.0.0.1:54329`, then applies all migrations:
+
+```text
+deploy\scripts\reset-development.cmd --force
+```
+
+Milestone 0 intentionally seeds no users, credentials, catalog, recipes, inventory, POS, payment, shift, supplier, or menu data. The login endpoint remains a development-safe contract skeleton and always returns `iam.not_configured` for a syntactically valid request.
 
 ## Documentation
 

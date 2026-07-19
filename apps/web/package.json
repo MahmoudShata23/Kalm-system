@@ -12,7 +12,7 @@
     "build": "ng build --configuration production",
     "lint": "eslint .",
     "test": "vitest run",
-    "e2e": "playwright test --config ../../tests/E2E/playwright.config.ts"
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@angular/animations": "22.0.7",
