@@ -10,12 +10,12 @@ Milestone 0 - Foundation
 
 | Requirement | Status | Notes |
 |---|---|---|
-| SRD 8.1 Approved stack | Verified | .NET SDK 10.0.302, Angular 22.0.7, Material/CDK 22.0.5, Node 24.18.0 with npm 11.16.0, Docker 29.6.1, and Compose v5.3.0 are installed. |
+| SRD 8.1 Approved stack | Verified | .NET SDK 10.0.302, Angular 22.0.7, PrimeNG 22.0.0, @primeuix/themes 3.0.0, PrimeIcons 8.0.0, Node 24.18.0 with npm 11.16.0, Docker 29.6.1, and Compose v5.3.0. Material/CDK removed by ADR 0002. |
 | SRD 8.2 Modular monolith | Implemented | API composition root, shared kernel, building blocks, and Identity skeleton contracts created. |
 | SRD 9 Repository structure | Implemented | Foundation folders created. Future modules are intentionally not generated as empty projects. |
 | SRD 10.1 General coding rules | Implemented | Nullable, analyzers, strict TypeScript, central package pinning, and warnings-as-errors configured. |
 | SRD 10.2 Backend rules | Verified | Problem Details, correlation IDs, injected clock, EF Core PostgreSQL context, immutable historical migration, and clean/upgrade migration tests pass. |
-| SRD 10.3 Frontend rules | Verified | Standalone Angular shell, strict TypeScript, signals, zoneless configuration, and Arabic/English localized copy with LTR/RTL switching pass frontend and E2E validation. |
+| SRD 10.3 Frontend rules | Verified | Standalone Angular shell, strict TypeScript, signals, zoneless configuration, PrimeNG Styled Mode with KalmPreset, and Arabic/English localized copy with LTR/RTL and keyboard-accessibility E2E checks pass. |
 | SRD 17.8 Observability | Implemented for M0 | Correlation ID middleware and health endpoints added. Full OpenTelemetry is deferred beyond Milestone 0. |
 | SRD 21 Testing strategy | Verified locally; CI-only security gates pending | Unit, PostgreSQL-backed integration, architecture, and Playwright E2E smoke tests pass. Gitleaks and Trivy execute only on GitHub runners. |
 | SRD 22.2 Local developer experience | Verified | Docker Compose, health checks, migration validation, OpenAPI snapshot commands, guarded development reset, README, and local development guide are present. The reset intentionally seeds no users, credentials, or cafe business data. |
@@ -34,10 +34,19 @@ Milestone 0 - Foundation
 6. Add Docker Compose, CI, README, and setup documentation.
 7. Run formatting, linting, builds, and tests; document blockers from missing local runtime dependencies.
 
+## Foundation Stack Amendment
+
+- ADR 0002 supersedes ADR 0001's Material/CDK toolkit decision.
+- PrimeNG 22.0.0, @primeuix/themes 3.0.0, and PrimeIcons 8.0.0 are exact production pins.
+- `KalmPreset` extends Aura and maps the Kalm palette into primitive, semantic, surface, form-field, focus-ring, radius, and selected component tokens.
+- No direct Angular CDK package or application import is retained. PrimeNG 22 requires `@angular/cdk`, so npm resolves CDK 22.0.5 transitively; this is documented in ADR 0002.
+- Test-only Playwright fixtures cover PrimeNG accessibility and keyboard behavior without exposing a production or normal-development application route.
+
 ## Validation Notes and Remaining Blockers
 
 - PowerShell blocks the unsigned `npm.ps1` shim; use `npm.cmd` on this Windows machine. No execution-policy change is required.
-- `npm audit --audit-level=high` passes with one reported low-severity esbuild advisory; no high/critical frontend advisory is present. Dependency upgrades are outside this validation task.
+- `npm audit --audit-level=high` passes with one reported low-severity esbuild advisory (GHSA-g7r4-m6w7-qqqr); no high/critical frontend advisory is present.
+- The PrimeNG production build succeeds at 502.38 kB initial raw size (114.14 kB estimated transfer). The existing 500 kB warning fires by 2.38 kB, the 750 kB error budget passes, and test-only accessibility fixtures produce no production chunk.
 - Gitleaks and Trivy are configured in CI but were not run locally because they are runner-based checks.
 - NuGet restore audits direct and transitive packages with `NuGetAuditLevel=high`; `NU1903` and `NU1904` are errors. The local and CI command is `deploy\\scripts\\check-nuget-audit.cmd`.
 - The committed `20260715140000_InitialFoundation` migration is immutable. No additive database migration was required; the current model snapshot has no pending schema operations. Clean and previously-released-database upgrade tests pass.

@@ -9,6 +9,8 @@
   },
   "scripts": {
     "start": "ng serve --host 127.0.0.1 --port 4200",
+    "start:e2e": "ng serve --configuration e2e --host 127.0.0.1 --port 4200",
+    "start:e2e:production": "ng serve --configuration production --host 127.0.0.1 --port 4201",
     "build": "ng build --configuration production",
     "lint": "eslint .",
     "test": "vitest run",
@@ -16,14 +18,15 @@
   },
   "dependencies": {
     "@angular/animations": "22.0.7",
-    "@angular/cdk": "22.0.5",
     "@angular/common": "22.0.7",
     "@angular/compiler": "22.0.7",
     "@angular/core": "22.0.7",
     "@angular/forms": "22.0.7",
-    "@angular/material": "22.0.5",
+    "@primeuix/themes": "3.0.0",
     "@angular/platform-browser": "22.0.7",
     "@angular/router": "22.0.7",
+    "primeicons": "8.0.0",
+    "primeng": "22.0.0",
     "rxjs": "7.8.2",
     "tslib": "2.8.1"
   },

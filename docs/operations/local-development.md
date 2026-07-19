@@ -51,6 +51,8 @@ npm.cmd start
 
 Open `http://127.0.0.1:4200`.
 
+The frontend uses PrimeNG Styled Mode with the Aura-based `KalmPreset` in `src/app/core/theme/kalm-preset.ts`. Do not add Angular Material/CDK or a supplemental CSS framework. PrimeNG accessibility fixtures are compiled only by the Playwright E2E configuration and are never application routes.
+
 Use `npm.cmd` on this Windows machine because the PowerShell policy blocks the unsigned `npm.ps1` shim. Do not change the machine execution policy. CI and non-Windows shells use `npm`.
 
 ## Development Database

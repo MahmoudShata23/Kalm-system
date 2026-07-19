@@ -60,7 +60,7 @@ npm.cmd run e2e
 npm.cmd start
 ```
 
-The Angular shell is standalone, strict, zoneless, and supports English LTR and Arabic RTL.
+The Angular shell is standalone, strict, zoneless, and supports English LTR and Arabic RTL. Its sole UI toolkit is PrimeNG 22.0.0 Styled Mode with `@primeuix/themes` 3.0.0, PrimeIcons 8.0.0, and an Aura-based `KalmPreset` mapped to Kalm design tokens. Angular Material and the direct CDK dependency are removed; npm resolves CDK only because PrimeNG 22 declares it as a required transitive dependency.
 
 This machine's PowerShell policy blocks the unsigned `npm.ps1` shim. Use `npm.cmd` as shown; do not change the machine execution policy. Linux/macOS and CI use `npm` normally.
 
@@ -95,4 +95,5 @@ Milestone 0 intentionally seeds no users, credentials, catalog, recipes, invento
 - Contributor instructions: `AGENTS.md`
 - Implementation status: `docs/product/implementation-status.md`
 - Architecture decisions: `docs/adr/`
+- PrimeNG foundation decision: `docs/adr/0002-primeng-ui-toolkit.md`
 - Local development guide: `docs/operations/local-development.md`
