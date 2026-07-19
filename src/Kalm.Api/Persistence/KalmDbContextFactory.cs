@@ -7,10 +7,16 @@ namespace Kalm.Api.Persistence;
 
 public sealed class KalmDbContextFactory : IDesignTimeDbContextFactory<KalmDbContext>
 {
+    private const string DevelopmentConnectionString =
+        "Host=localhost;Port=54329;Database=kalm;Username=kalm;Password=kalm_dev_password";
+
     public KalmDbContext CreateDbContext(string[] args)
     {
+        string connectionString =
+            Environment.GetEnvironmentVariable("KALM_DATABASE_CONNECTION_STRING") ?? DevelopmentConnectionString;
+
         var options = new DbContextOptionsBuilder<KalmDbContext>()
-            .UseNpgsql("Host=localhost;Port=54329;Database=kalm;Username=kalm;Password=kalm_dev_password")
+            .UseNpgsql(connectionString)
             .Options;
 
         return new KalmDbContext(options);

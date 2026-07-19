@@ -14,7 +14,7 @@ services:
       timeout: 5s
       retries: 10
     volumes:
-      - kalm_postgres_data:/var/lib/postgresql/data
+      - kalm_postgres_data:/var/lib/postgresql
 
 volumes:
   kalm_postgres_data:

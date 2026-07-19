@@ -32,6 +32,36 @@ public sealed class PostgreSqlFoundationTests
         Assert.Equal("platform.outbox_messages", await ResolveTableName(database.ConnectionString, "platform.outbox_messages"));
         Assert.Equal("platform.idempotency_records", await ResolveTableName(database.ConnectionString, "platform.idempotency_records"));
         Assert.Equal("platform.schema_markers", await ResolveTableName(database.ConnectionString, "platform.schema_markers"));
+        await AssertPlatformConstraints(database.ConnectionString);
+    }
+
+    [Fact]
+    public async Task PreviouslyReleasedDatabase_UpgradesWithoutRecreatingFoundationTables()
+    {
+        await using var database = await PostgreSqlTestDatabase.CreateAsync();
+
+        var options = new DbContextOptionsBuilder<KalmDbContext>()
+            .UseNpgsql(database.ConnectionString)
+            .Options;
+
+        await using var context = new KalmDbContext(options);
+
+        await context.Database.MigrateAsync(InitialMigrationName, CancellationToken.None);
+
+        var appliedMigrations = await context.Database.GetAppliedMigrationsAsync(CancellationToken.None);
+        Assert.Equal([InitialMigrationName], appliedMigrations);
+
+        var marker = new SchemaMarker(Guid.NewGuid(), "upgrade-sentinel", DateTimeOffset.UtcNow);
+        context.SchemaMarkers.Add(marker);
+        await context.SaveChangesAsync(CancellationToken.None);
+
+        await context.Database.MigrateAsync(CancellationToken.None);
+
+        var persistedMarker = await context.SchemaMarkers
+            .SingleAsync(schemaMarker => schemaMarker.Id == marker.Id, CancellationToken.None);
+
+        Assert.Equal(marker.Name, persistedMarker.Name);
+        await AssertPlatformConstraints(database.ConnectionString);
     }
 
     [Fact]
@@ -78,6 +108,34 @@ public sealed class PostgreSqlFoundationTests
 
         await using var command = connection.CreateCommand();
         command.CommandText = "select to_regclass(@tableName)::text;";
+        command.Parameters.AddWithValue("tableName", tableName);
+
+        return (string?)await command.ExecuteScalarAsync(CancellationToken.None);
+    }
+
+    private static async Task AssertPlatformConstraints(string connectionString)
+    {
+        Assert.Equal("pk_idempotency_records", await ResolvePrimaryKeyName(connectionString, "idempotency_records"));
+        Assert.Equal("pk_outbox_messages", await ResolvePrimaryKeyName(connectionString, "outbox_messages"));
+        Assert.Equal("pk_schema_markers", await ResolvePrimaryKeyName(connectionString, "schema_markers"));
+        Assert.Equal("platform.ix_idempotency_records_key", await ResolveTableName(connectionString, "platform.ix_idempotency_records_key"));
+        Assert.Equal("platform.ix_outbox_messages_processed_at_utc_occurred_at_utc", await ResolveTableName(connectionString, "platform.ix_outbox_messages_processed_at_utc_occurred_at_utc"));
+        Assert.Equal("platform.ix_schema_markers_name", await ResolveTableName(connectionString, "platform.ix_schema_markers_name"));
+    }
+
+    private static async Task<string?> ResolvePrimaryKeyName(string connectionString, string tableName)
+    {
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(CancellationToken.None);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            select constraint_name
+            from information_schema.table_constraints
+            where table_schema = 'platform'
+              and table_name = @tableName
+              and constraint_type = 'PRIMARY KEY';
+            """;
         command.Parameters.AddWithValue("tableName", tableName);
 
         return (string?)await command.ExecuteScalarAsync(CancellationToken.None);

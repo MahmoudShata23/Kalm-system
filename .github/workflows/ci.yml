@@ -31,6 +31,8 @@ jobs:
           dotnet-version: 10.0.302
       - name: Restore
         run: dotnet restore Kalm.slnx
+      - name: NuGet vulnerability policy
+        run: dotnet restore Kalm.slnx --force-evaluate -p:NuGetAudit=true -p:NuGetAuditMode=all -p:NuGetAuditLevel=high
       - name: Format
         run: dotnet format Kalm.slnx --verify-no-changes --no-restore
       - name: Build
@@ -41,6 +43,10 @@ jobs:
         run: dotnet test tests/Architecture/Kalm.ArchitectureTests/Kalm.ArchitectureTests.csproj --configuration Release --no-build --collect:"XPlat Code Coverage"
       - name: Integration tests
         run: dotnet test tests/Integration/Kalm.Api.IntegrationTests/Kalm.Api.IntegrationTests.csproj --configuration Release --no-build --collect:"XPlat Code Coverage"
+      - name: Validate clean database migration
+        run: dotnet test tests/Integration/Kalm.Api.IntegrationTests/Kalm.Api.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~PostgreSqlFoundationTests.InitialMigration_AppliesToCleanPostgreSqlDatabase"
+      - name: Validate OpenAPI snapshot
+        run: dotnet test tests/Integration/Kalm.Api.IntegrationTests/Kalm.Api.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~OpenApiContractTests.OpenApiDocument_MatchesCommittedSnapshot"
 
   frontend:
     name: Frontend
@@ -57,11 +63,37 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
       - name: Install
         run: npm ci
+      - name: Dependency vulnerability audit
+        run: npm audit --audit-level=high
       - name: Lint
         run: npm run lint
       - name: Unit tests
         run: npm run test
       - name: Build
         run: npm run build
+      - name: Install Playwright browser
+        run: npm exec playwright install --with-deps chromium
       - name: E2E smoke
         run: npm run e2e
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Scan committed content for secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Scan PostgreSQL container image
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: postgres:18.4
+          format: table
+          exit-code: 1
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
