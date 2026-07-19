@@ -1,13 +1,19 @@
+@import "primeicons/primeicons.css";
+
 :root {
-  --kalm-sage: #8f9f8c;
-  --kalm-sage-light: #9ead98;
-  --kalm-warm-beige: #e6d6bf;
-  --kalm-sand: #c8b596;
-  --kalm-coffee: #3a2a22;
-  --kalm-charcoal: #1f1b18;
-  --kalm-off-white: #f7f2ea;
-  --kalm-focus: #2f6f77;
-  --kalm-danger: #a64035;
+  --kalm-sage: var(--p-primary-500);
+  --kalm-sage-light: var(--p-primary-400);
+  --kalm-warm-beige: var(--p-surface-300);
+  --kalm-warm-beige-deep: var(--p-surface-400);
+  --kalm-sand: var(--p-surface-500);
+  --kalm-coffee: var(--p-neutral-900);
+  --kalm-charcoal: var(--p-neutral-950);
+  --kalm-off-white: var(--p-surface-100);
+  --kalm-surface-raised: var(--p-surface-0);
+  --kalm-focus: var(--kalm-coffee);
+  --kalm-radius-small: 6px;
+  --kalm-radius-medium: 8px;
+  --kalm-radius-large: 12px;
   color-scheme: light;
   font-family: Inter, "Segoe UI", Arial, sans-serif;
 }
@@ -24,9 +30,14 @@ body {
   color: var(--kalm-charcoal);
 }
 
-button,
-input {
+button, input, select, textarea {
   font: inherit;
+}
+
+.p-button,
+.p-inputtext,
+.p-select {
+  min-height: 44px;
 }
 
 :focus-visible {

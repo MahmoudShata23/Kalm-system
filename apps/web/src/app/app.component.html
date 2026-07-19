@@ -1,25 +1,23 @@
 <div class="shell" [attr.dir]="viewModel().direction" [attr.lang]="viewModel().language">
-  <mat-toolbar class="topbar" color="primary">
+  <header class="topbar">
     <span class="brand">{{ viewModel().copy.brand }}</span>
     <span class="spacer"></span>
     <span class="status">{{ viewModel().copy.sessionState }}</span>
     <div class="language-toggle" [attr.aria-label]="viewModel().copy.languageToggleLabel">
-      <button
-        type="button"
-        mat-button
+      <p-button
+        label="EN"
+        [text]="true"
+        [ariaLabel]="'EN — English'"
         [class.active]="viewModel().language === 'en'"
-        (click)="setLanguage('en')">
-        EN
-      </button>
-      <button
-        type="button"
-        mat-button
+        (onClick)="setLanguage('en')" />
+      <p-button
+        label="AR"
+        [text]="true"
+        [ariaLabel]="'AR — العربية'"
         [class.active]="viewModel().language === 'ar'"
-        (click)="setLanguage('ar')">
-        AR
-      </button>
+        (onClick)="setLanguage('ar')" />
     </div>
-  </mat-toolbar>
+  </header>
 
   <main class="content">
     <section class="panel" aria-labelledby="shell-title">
@@ -42,5 +40,6 @@
         </div>
       </dl>
     </section>
+    <router-outlet />
   </main>
 </div>

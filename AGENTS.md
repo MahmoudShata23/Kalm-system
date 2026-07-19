@@ -20,7 +20,7 @@ Build a production-grade cafe POS and operations system for Kalm Specialty Coffe
 ## 3. Approved Stack
 
 - Angular 22.x stable, standalone, strict, zoneless.
-- Angular Material/CDK 22.x and Kalm design tokens.
+- PrimeNG 22.x Styled Mode with `@primeuix/themes`, Aura-based `KalmPreset`, PrimeIcons 8.x, and Kalm design tokens. Angular Material and direct application CDK dependencies/imports are prohibited; PrimeNG's required transitive CDK dependency is documented in ADR 0002.
 - Node.js 24 LTS for development/build.
 - .NET 10 LTS / ASP.NET Core 10.
 - EF Core 10 and PostgreSQL 18.x.
@@ -82,6 +82,7 @@ Do not produce a large set of disconnected scaffolds.
 - Accessible semantic markup and visible focus.
 - Touch targets at least 44px; POS targets normally larger.
 - Use design tokens; do not scatter brand hex codes.
+- Use PrimeNG Styled Mode with the Aura-based `KalmPreset`; do not use the Material preset, `::ng-deep`, PrimeFlex, Tailwind, Bootstrap, or another CSS framework.
 - Client calculations are previews only; server validates authoritative totals.
 - Offline UI always shows connectivity and pending sync state.
 

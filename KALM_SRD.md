@@ -2,8 +2,8 @@
 title: "Kalm Cafe Management System"
 subtitle: "Software Requirements Document (SRD)"
 author: "Kalm Specialty Coffee"
-date: "15 July 2026"
-version: "1.0"
+date: "19 July 2026"
+version: "1.1"
 lang: en-US
 ---
 
@@ -45,9 +45,9 @@ lang: en-US
 | Field | Value |
 |---|---|
 | Document | Kalm Cafe Management System - Software Requirements Document |
-| Version | 1.0 |
+| Version | 1.1 |
 | Status | Approved implementation baseline |
-| Date | 15 July 2026 |
+| Date | 19 July 2026 |
 | Product owner | Kalm Specialty Coffee |
 | Primary implementation consumer | OpenAI Codex and the engineering team |
 | Initial deployment | One Kalm branch in Cairo, Egypt |
@@ -61,6 +61,7 @@ lang: en-US
 | Version | Date | Description |
 |---|---|---|
 | 1.0 | 15 July 2026 | Initial complete product, architecture, data, API, quality, and implementation specification. |
+| 1.1 | 19 July 2026 | Product Owner foundation amendment: replaced Angular Material/CDK with stable PrimeNG 22 Styled Mode and the Aura-based KalmPreset. |
 
 # 1. Purpose
 
@@ -234,7 +235,7 @@ Baseline verified on 15 July 2026:
 
 - Frontend framework: **Angular 22.x**, standalone components, strict TypeScript, zoneless change detection.
 - Frontend runtime/build: **Node.js 24 LTS**. Do not use Node 26 Current for production build agents until it reaches LTS.
-- UI toolkit: **Angular Material/CDK 22.x** plus Kalm custom design tokens. PrimeNG 22 was not yet production-stable at baseline, therefore it is not a Release 1 dependency.
+- UI toolkit: **PrimeNG 22.0.0** with **@primeuix/themes 3.0.0**, **PrimeIcons 8.0.0**, and Kalm custom design tokens. Use PrimeNG Styled Mode with Aura as the base for `KalmPreset`. Angular Material and direct application CDK dependencies are prohibited; PrimeNG's required transitive CDK dependency is documented by ADR 0002.
 - Backend: **.NET 10 LTS**, ASP.NET Core 10.
 - ORM: **Entity Framework Core 10** with Npgsql provider.
 - Database: **PostgreSQL 18.x**, latest patched minor.
@@ -423,6 +424,8 @@ apps/web/src/app/
 - No direct HTTP calls from presentation components; use feature data-access services/facades.
 - Use semantic HTML, keyboard support, visible focus, and accessible names.
 - Use Kalm design tokens instead of scattered hex values.
+- Use PrimeNG Styled Mode with the Aura-based `KalmPreset`; map Kalm primitive, semantic, surface, form-field, focus-ring, border-radius, and component tokens through the preset.
+- Do not use PrimeNG's Material preset, `::ng-deep`, PrimeFlex, Tailwind, Bootstrap, or another CSS framework.
 - All user-facing strings are localizable.
 - POS interactions must be touch-friendly and avoid confirmation dialogs for safe reversible actions.
 - Dangerous actions require explicit confirmation and permission.

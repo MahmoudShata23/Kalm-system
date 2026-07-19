@@ -45,6 +45,17 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "e2e": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true,
+              "fileReplacements": [
+                {
+                  "replace": "src/app/app.routes.ts",
+                  "with": "e2e/app.routes.ts"
+                }
+              ]
             }
           },
           "defaultConfiguration": "production"
@@ -57,6 +68,9 @@
             },
             "development": {
               "buildTarget": "web:build:development"
+            },
+            "e2e": {
+              "buildTarget": "web:build:e2e"
             }
           },
           "defaultConfiguration": "development"

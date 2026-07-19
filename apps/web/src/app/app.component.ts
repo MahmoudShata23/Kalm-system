@@ -1,12 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from "@angular/core";
-import { MatButtonModule } from "@angular/material/button";
-import { MatToolbarModule } from "@angular/material/toolbar";
+import { ButtonModule } from "primeng/button";
+import { RouterOutlet } from "@angular/router";
 import { Language, LanguageService } from "./core/i18n/language.service";
 
 @Component({
   selector: "kalm-root",
   standalone: true,
-  imports: [MatButtonModule, MatToolbarModule],
+  imports: [ButtonModule, RouterOutlet],
   templateUrl: "./app.component.html",
   styleUrl: "./app.component.scss",
   changeDetection: ChangeDetectionStrategy.OnPush
