@@ -2,44 +2,13 @@
   <header class="topbar">
     <span class="brand">{{ viewModel().copy.brand }}</span>
     <span class="spacer"></span>
-    <span class="status">{{ viewModel().copy.sessionState }}</span>
-    <div class="language-toggle" [attr.aria-label]="viewModel().copy.languageToggleLabel">
-      <p-button
-        label="EN"
-        [text]="true"
-        [ariaLabel]="'EN — English'"
-        [class.active]="viewModel().language === 'en'"
-        (onClick)="setLanguage('en')" />
-      <p-button
-        label="AR"
-        [text]="true"
-        [ariaLabel]="'AR — العربية'"
-        [class.active]="viewModel().language === 'ar'"
-        (onClick)="setLanguage('ar')" />
-    </div>
+    <span class="status">{{ viewModel().isAuthenticated ? viewModel().copy.sessionAuthenticated : viewModel().copy.sessionState }}</span>
+    <nav class="language-toggle" [attr.aria-label]="viewModel().copy.languageToggleLabel">
+      <p-button label="EN" [text]="true" ariaLabel="EN — English" [class.active]="viewModel().language === 'en'" (onClick)="setLanguage('en')" />
+      <p-button label="AR" [text]="true" ariaLabel="AR — العربية" [class.active]="viewModel().language === 'ar'" (onClick)="setLanguage('ar')" />
+    </nav>
   </header>
-
   <main class="content">
-    <section class="panel" aria-labelledby="shell-title">
-      <p class="eyebrow">{{ viewModel().copy.location }}</p>
-      <h1 id="shell-title">{{ viewModel().copy.heading }}</h1>
-      <p class="summary">{{ viewModel().copy.summary }}</p>
-
-      <dl class="readiness">
-        <div>
-          <dt>{{ viewModel().copy.apiLabel }}</dt>
-          <dd>{{ viewModel().copy.apiValue }}</dd>
-        </div>
-        <div>
-          <dt>{{ viewModel().copy.accessLabel }}</dt>
-          <dd>{{ viewModel().copy.accessValue }}</dd>
-        </div>
-        <div>
-          <dt>{{ viewModel().copy.languageLabel }}</dt>
-          <dd>{{ viewModel().copy.languageValue }}</dd>
-        </div>
-      </dl>
-    </section>
     <router-outlet />
   </main>
 </div>

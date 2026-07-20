@@ -2,9 +2,7 @@
 
 Kalm is a modular monolith cafe POS and operations system for Kalm Specialty Coffee.
 
-This repository has completed the locally verified **Milestone 0 - Foundation** implementation. It contains the runnable foundation only: .NET API host, PostgreSQL wiring, initial platform migration, Problem Details, correlation IDs, health endpoints, authentication skeleton contract, Angular bilingual shell, Docker Compose, CI, contracts, and test projects.
-
-Milestone 1 business features are intentionally not implemented yet.
+Milestone 0 and Milestone 1A Slice 1 are complete. Milestone 1A Slice 2 adds the operational initial-user bootstrap, management password authentication, server-maintained sessions, secure same-origin cookies, CSRF protection, logout, `/auth/me`, and the bilingual management-login experience. Roles, permissions, PIN login, devices, and later business modules remain deferred.
 
 ## Required Toolchain
 
@@ -27,7 +25,6 @@ dotnet test tests/Unit/Kalm.UnitTests/Kalm.UnitTests.csproj --no-build
 dotnet test tests/Architecture/Kalm.ArchitectureTests/Kalm.ArchitectureTests.csproj --no-build
 dotnet test tests/Integration/Kalm.Api.IntegrationTests/Kalm.Api.IntegrationTests.csproj --no-build
 deploy\scripts\validate-migrations.cmd
-dotnet tool run dotnet-ef database update --project src/Kalm.Api --startup-project src/Kalm.Api --context KalmDbContext
 dotnet run --project src/Kalm.Api
 ```
 
@@ -36,12 +33,14 @@ Health endpoints:
 - `GET /health/live`
 - `GET /health/ready`
 
-Authentication skeleton endpoints:
+Management authentication endpoints:
 
+- `GET /api/v1/auth/csrf`
 - `GET /api/v1/auth/me`
 - `POST /api/v1/auth/login`
+- `POST /api/v1/auth/logout`
 
-The login endpoint returns a stable `iam.not_configured` Problem Details response until Milestone 1 implements real credential validation.
+Authentication uses an opaque server-session cookie. The Angular client keeps the CSRF request token only in memory and stores no authentication token in web storage. See `docs/operations/management-authentication.md` for deployment configuration and the non-public bootstrap procedure.
 
 For non-development environments, provide the database connection string through configuration such as the
 `Database__ConnectionString` environment variable or a secret manager. Development defaults for the local
@@ -87,7 +86,7 @@ The guarded workflow below deletes and recreates only the local `kalm` database 
 deploy\scripts\reset-development.cmd --force
 ```
 
-Milestone 0 intentionally seeds no users, credentials, catalog, recipes, inventory, POS, payment, shift, supplier, or menu data. The login endpoint remains a development-safe contract skeleton and always returns `iam.not_configured` for a syntactically valid request.
+The reset intentionally seeds no users or credentials. Create the first management user only with the operational Bootstrap CLI after every migration has been applied; no public first-run endpoint exists.
 
 ## Documentation
 
@@ -97,3 +96,4 @@ Milestone 0 intentionally seeds no users, credentials, catalog, recipes, invento
 - Architecture decisions: `docs/adr/`
 - PrimeNG foundation decision: `docs/adr/0002-primeng-ui-toolkit.md`
 - Local development guide: `docs/operations/local-development.md`
+- Management authentication and bootstrap: `docs/operations/management-authentication.md`

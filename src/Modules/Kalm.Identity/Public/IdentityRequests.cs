@@ -1,3 +1,8 @@
 namespace Kalm.Identity;
 
-public sealed record LoginRequest(string Identifier, string Secret);
+public sealed class LoginRequest
+{
+    public string Identifier { get; init; } = string.Empty;
+
+    public string Password { get; set; } = string.Empty;
+}

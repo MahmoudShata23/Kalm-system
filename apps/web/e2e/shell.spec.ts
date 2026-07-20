@@ -1,20 +1,39 @@
 import { expect, test } from "@playwright/test";
 
 test("shell switches between English and Arabic direction", async ({ page }) => {
+  await page.route("**/api/v1/auth/csrf", route => route.fulfill({ json: { requestToken: "e2e-csrf" } }));
+  await page.route("**/api/v1/auth/me", route => route.fulfill({ json: { isAuthenticated: false, permissions: [] } }));
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "Kalm Cafe" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
   await expect(page.locator(".shell")).toHaveAttribute("lang", "en");
   await expect(page.locator(".shell")).toHaveAttribute("dir", "ltr");
 
   await page.getByRole("button", { name: /AR/ }).click();
 
-  await expect(page.getByRole("heading", { name: "كالم كافيه" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "مرحبًا بعودتك" })).toBeVisible();
   await expect(page.locator(".shell")).toHaveAttribute("lang", "ar");
   await expect(page.locator(".shell")).toHaveAttribute("dir", "rtl");
 
   await page.getByRole("button", { name: /EN/ }).click();
   await expect(page.locator(".shell")).toHaveAttribute("dir", "ltr");
+});
+
+test("management login uses a generic failure and clears the password", async ({ page }) => {
+  await page.route("**/api/v1/auth/csrf", route => route.fulfill({ json: { requestToken: "e2e-csrf" } }));
+  await page.route("**/api/v1/auth/me", route => route.fulfill({ json: { isAuthenticated: false, permissions: [] } }));
+  await page.route("**/api/v1/auth/login", route => route.fulfill({ status: 401, json: { code: "auth.invalid_credentials" } }));
+  await page.goto("/management/login");
+
+  const identifier = page.getByLabel("Username or email");
+  const password = page.getByLabel("Password", { exact: true });
+  await identifier.fill("manager");
+  await password.fill("a secret that must be cleared");
+  await page.getByRole("button", { name: "Sign in" }).click();
+
+  await expect(page.getByRole("alert")).toContainText("Sign-in was unsuccessful");
+  await expect(password).toHaveValue("");
+  await expect(identifier).toBeFocused();
 });
 
 test.describe("PrimeNG test-only accessibility fixture", () => {

@@ -4,6 +4,8 @@
     <ProjectReference Include="..\..\..\src\Kalm.SharedKernel\Kalm.SharedKernel.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Kalm.Organization\Kalm.Organization.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Kalm.Audit\Kalm.Audit.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Kalm.Identity\Kalm.Identity.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Kalm.Identity.Infrastructure\Kalm.Identity.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

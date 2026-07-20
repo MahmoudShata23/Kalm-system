@@ -48,22 +48,22 @@ public sealed class ApiFoundationTests : IClassFixture<WebApplicationFactory<Pro
     }
 
     [Fact]
-    public async Task LoginEndpoint_ReturnsStableProblemCodeUntilMilestoneOne()
+    public async Task LoginEndpoint_RejectsMissingCsrfWithStableProblemCode()
     {
-        using var client = _factory.CreateClient();
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
 
         using var response = await client.PostAsJsonAsync(
             "/api/v1/auth/login",
-            new { identifier = "demo", secret = "12345" },
+            new { identifier = "demo", password = "a sufficiently long password" },
             CancellationToken.None);
 
-        Assert.Equal(HttpStatusCode.NotImplemented, response.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
 
         using var body = await JsonDocument.ParseAsync(
             await response.Content.ReadAsStreamAsync(CancellationToken.None),
             cancellationToken: CancellationToken.None);
 
-        Assert.Equal("iam.not_configured", body.RootElement.GetProperty("code").GetString());
+        Assert.Equal("auth.csrf_invalid", body.RootElement.GetProperty("code").GetString());
         Assert.True(body.RootElement.TryGetProperty("traceId", out _));
     }
 

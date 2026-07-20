@@ -1,6 +1,7 @@
 using System.Reflection;
 using Kalm.BuildingBlocks.Time;
 using Kalm.Identity;
+using Kalm.Identity.Infrastructure;
 using Kalm.Organization;
 using Kalm.Organization.Infrastructure;
 using Kalm.Audit;
@@ -54,6 +55,7 @@ public sealed class DependencyRulesTests
     {
         AssertNoReferences(typeof(OrganizationInfrastructureAssemblyMarker).Assembly, ["Kalm.Audit.Infrastructure"]);
         AssertNoReferences(typeof(AuditInfrastructureAssemblyMarker).Assembly, ["Kalm.Organization.Infrastructure"]);
+        AssertNoReferences(typeof(IdentityInfrastructureAssemblyMarker).Assembly, ["Kalm.Organization.Infrastructure", "Kalm.Audit.Infrastructure"]);
     }
 
     private static void AssertNoReferences(Assembly assembly, IReadOnlyCollection<string> forbiddenPrefixes)

@@ -7,5 +7,12 @@ public enum AuditAction
     OrganizationStatusChanged,
     BranchCreated,
     BranchUpdated,
-    BranchStatusChanged
+    BranchStatusChanged,
+    OperationalBootstrapCompleted,
+    PasswordCredentialActivated,
+    ManagementLoginSucceeded,
+    ManagementLoginFailed,
+    ManagementAccountLocked,
+    ManagementLogoutSucceeded,
+    ManagementSessionRevoked
 }

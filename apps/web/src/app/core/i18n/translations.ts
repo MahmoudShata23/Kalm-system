@@ -1,47 +1,67 @@
 import type { Language } from "./language.service";
 
+export interface ManagementLoginCopy {
+  managementAccess: string;
+  heading: string;
+  supporting: string;
+  identifier: string;
+  identifierRequired: string;
+  password: string;
+  submit: string;
+  genericError: string;
+  logoutError: string;
+  welcome: string;
+  signedIn: string;
+  logout: string;
+}
+
 export interface ShellCopy {
   brand: string;
-  location: string;
-  heading: string;
-  summary: string;
   sessionState: string;
-  apiLabel: string;
-  apiValue: string;
-  accessLabel: string;
-  accessValue: string;
+  sessionAuthenticated: string;
   languageToggleLabel: string;
-  languageLabel: string;
-  languageValue: string;
+  managementLogin: ManagementLoginCopy;
 }
 
 export const TRANSLATIONS: Record<Language, ShellCopy> = {
   en: {
     brand: "Kalm Cafe",
-    location: "Cairo branch",
-    heading: "Kalm Cafe",
-    summary: "Calm service, clear rhythm, and warm hospitality for every shift.",
     sessionState: "Not signed in",
-    apiLabel: "API",
-    apiValue: "Health ready",
-    accessLabel: "Access",
-    accessValue: "Staff only",
+    sessionAuthenticated: "Signed in",
     languageToggleLabel: "Language",
-    languageLabel: "Language",
-    languageValue: "English"
+    managementLogin: {
+      managementAccess: "Management access",
+      heading: "Welcome back",
+      supporting: "Sign in with your management username or email.",
+      identifier: "Username or email",
+      identifierRequired: "Enter your username or email.",
+      password: "Password",
+      submit: "Sign in",
+      genericError: "Sign-in was unsuccessful. Check your details and try again.",
+      logoutError: "Sign-out was unsuccessful. Please try again.",
+      welcome: "Welcome",
+      signedIn: "Your secure management session is active.",
+      logout: "Sign out"
+    }
   },
   ar: {
     brand: "كالم كافيه",
-    location: "فرع القاهرة",
-    heading: "كالم كافيه",
-    summary: "خدمة هادئة وإيقاع واضح وضيافة دافئة في كل وردية.",
     sessionState: "لم يتم تسجيل الدخول",
-    apiLabel: "الخدمة",
-    apiValue: "جاهزة",
-    accessLabel: "الدخول",
-    accessValue: "للموظفين فقط",
+    sessionAuthenticated: "تم تسجيل الدخول",
     languageToggleLabel: "اللغة",
-    languageLabel: "اللغة",
-    languageValue: "العربية"
+    managementLogin: {
+      managementAccess: "دخول الإدارة",
+      heading: "مرحبًا بعودتك",
+      supporting: "سجّل الدخول باسم مستخدم الإدارة أو البريد الإلكتروني.",
+      identifier: "اسم المستخدم أو البريد الإلكتروني",
+      identifierRequired: "أدخل اسم المستخدم أو البريد الإلكتروني.",
+      password: "كلمة المرور",
+      submit: "تسجيل الدخول",
+      genericError: "تعذّر تسجيل الدخول. تحقّق من البيانات وحاول مرة أخرى.",
+      logoutError: "تعذّر تسجيل الخروج. حاول مرة أخرى.",
+      welcome: "مرحبًا",
+      signedIn: "جلسة الإدارة الآمنة نشطة.",
+      logout: "تسجيل الخروج"
+    }
   }
 };

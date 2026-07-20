@@ -1,0 +1,56 @@
+<section class="login-card" [attr.aria-labelledby]="user().isAuthenticated ? 'session-heading' : 'login-heading'">
+  @if (user().isAuthenticated) {
+    <p class="eyebrow">{{ copy().managementAccess }}</p>
+    <h1 id="session-heading">{{ copy().welcome }}, {{ user().displayName }}</h1>
+    <p class="supporting">{{ copy().signedIn }}</p>
+    <p-button
+      type="button"
+      [label]="copy().logout"
+      icon="pi pi-sign-out"
+      [loading]="submitting()"
+      (onClick)="logout()" />
+  } @else {
+    <p class="eyebrow">{{ copy().managementAccess }}</p>
+    <h1 id="login-heading">{{ copy().heading }}</h1>
+    <p class="supporting">{{ copy().supporting }}</p>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <div class="field">
+        <label for="management-identifier">{{ copy().identifier }}</label>
+        <input
+          #identifierInput
+          pInputText
+          id="management-identifier"
+          type="text"
+          formControlName="identifier"
+          autocomplete="username"
+          [attr.aria-describedby]="form.controls.identifier.invalid && form.controls.identifier.touched ? 'identifier-error' : null" />
+        @if (form.controls.identifier.invalid && form.controls.identifier.touched) {
+          <small id="identifier-error" class="field-error">{{ copy().identifierRequired }}</small>
+        }
+      </div>
+
+      <div #passwordHost class="field">
+        <label for="management-password">{{ copy().password }}</label>
+        <p-password
+          inputId="management-password"
+          formControlName="password"
+          [feedback]="false"
+          [fluid]="true"
+          [toggleMask]="true"
+          autocomplete="current-password"
+          [ariaLabel]="copy().password" />
+      </div>
+
+      <p-button
+        type="submit"
+        [label]="copy().submit"
+        icon="pi pi-sign-in"
+        [loading]="submitting()"
+        [fluid]="true"
+        [disabled]="submitting()" />
+    </form>
+  }
+
+  <p class="status-message" role="alert" aria-live="assertive">{{ errorMessage() }}</p>
+</section>
