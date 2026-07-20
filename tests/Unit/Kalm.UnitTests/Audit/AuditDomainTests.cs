@@ -8,7 +8,9 @@ public sealed class AuditDomainTests
     [Fact]
     public void AuditEntry_RequiresUtcTimestampAndBoundedFields()
     {
-        Assert.Throws<ArgumentException>(() => AuditEntry.Create(Guid.NewGuid(), DateTimeOffset.Now, null, null, null, null, AuditActorType.System, null, AuditAction.OrganizationCreated, "Organization", Guid.NewGuid(), AuditResult.Succeeded, null, "correlation", null, null, null, null));
+        DateTimeOffset nonUtcTimestamp = new(2026, 7, 20, 12, 0, 0, TimeSpan.FromHours(2));
+
+        Assert.Throws<ArgumentException>(() => AuditEntry.Create(Guid.NewGuid(), nonUtcTimestamp, null, null, null, null, AuditActorType.System, null, AuditAction.OrganizationCreated, "Organization", Guid.NewGuid(), AuditResult.Succeeded, null, "correlation", null, null, null, null));
     }
 
     [Fact]

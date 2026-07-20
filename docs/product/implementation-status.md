@@ -57,5 +57,5 @@ Milestone 1A - Identity, Organization, Branches, Devices, and Audit
 - Gitleaks and Trivy are configured in CI but were not run locally because they are runner-based checks.
 - NuGet restore audits direct and transitive packages with `NuGetAuditLevel=high`; `NU1903` and `NU1904` are errors. The local and CI command is `deploy\\scripts\\check-nuget-audit.cmd`.
 - The committed `20260715140000_InitialFoundation` migration is immutable. No additive database migration was required; the current model snapshot has no pending schema operations. Clean and previously-released-database upgrade tests pass.
-- The PostgreSQL 18.4 image and local container are healthy and available on port 54329.
+- The local container uses the pinned official PostgreSQL 18.4 Debian image (`postgres:18.4@sha256:32ca0af8e77bfb8c6610c488e4691f83f972a3e9e64d3b02facf3ab111ad5500`) and is healthy on port 54329.
 - PostgreSQL-backed integration tests create and drop isolated test databases using the `KALM_TEST_POSTGRES_ADMIN` connection string when supplied, or the local Docker defaults otherwise.

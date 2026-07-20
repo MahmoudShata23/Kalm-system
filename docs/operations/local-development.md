@@ -109,8 +109,11 @@ npm.cmd audit --audit-level=high
 
 NuGet restore audits direct and transitive dependencies. High and critical findings (`NU1903` and `NU1904`) are
 treated as errors; lower-severity findings do not block Milestone 0. CI additionally runs Gitleaks against committed
-content and Trivy against `postgres:18.4`. These remote-only action steps require the GitHub runner's network and
-Docker environment.
+content and Trivy against the pinned official PostgreSQL image
+`postgres:18.4@sha256:32ca0af8e77bfb8c6610c488e4691f83f972a3e9e64d3b02facf3ab111ad5500`. The temporary,
+CVE-specific exceptions in `.trivyignore` expire on 2026-08-31 because every official PostgreSQL 18.4 variant
+currently includes `gosu` built with vulnerable Go 1.24.6; they must be removed once an official patched image is
+available. These remote-only action steps require the GitHub runner's network and Docker environment.
 
 Production and staging connection strings must be supplied through environment variables, user secrets, or a
 secret manager. The root `appsettings.json` intentionally does not contain a usable database password.
