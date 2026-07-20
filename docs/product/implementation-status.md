@@ -4,7 +4,7 @@ Last updated: 2026-07-19
 
 ## Current Milestone
 
-Milestone 0 - Foundation
+Milestone 1A - Identity, Organization, Branches, Devices, and Audit
 
 ## Requirement Checklist
 
@@ -20,9 +20,16 @@ Milestone 0 - Foundation
 | SRD 21 Testing strategy | Verified locally; CI-only security gates pending | Unit, PostgreSQL-backed integration, architecture, and Playwright E2E smoke tests pass. Gitleaks and Trivy execute only on GitHub runners. |
 | SRD 22.2 Local developer experience | Verified | Docker Compose, health checks, migration validation, OpenAPI snapshot commands, guarded development reset, README, and local development guide are present. The reset intentionally seeds no users, credentials, or cafe business data. |
 | SRD 22.3 CI pipeline | Implemented; CI execution pending | GitHub Actions includes restore, fail-closed NuGet high/critical audit policy, format, build, tests, migration/OpenAPI checks, npm audit, Gitleaks, Trivy, and Playwright browser provisioning. |
-| SRD 23 Milestone 0 | Verified locally; CI execution pending | Foundation implementation only. No Milestone 1 features implemented. |
+| SRD 23 Milestone 0 | Verified locally; CI execution pending | Foundation implementation only. |
+| SRD 23 Milestone 1A Slice 1 | Implemented; PostgreSQL validation blocked locally | Organization/Branch persistence and immutable Audit foundation only; no runtime administration route or Angular screen is exposed before authentication. Docker Desktop was unavailable for database-backed validation. |
 | IAM-002 Authentication modes | Not started | Only skeleton endpoint contract exists. Real authentication belongs to Milestone 1. |
 | IAM-004 Roles and permissions | Not started | Not in Milestone 0. |
+
+## Milestone 1 Subdivision
+
+- Milestone 1A delivers Identity, Organization, Branches, Devices, Authentication, Authorization, Sessions, PIN login, and immutable audit writing.
+- Milestone 1B retains the original catalog scope: categories, products, variants, prices, modifiers, availability, POS menu endpoint, catalog screens, and the Kalm seed menu.
+- This subdivision does not remove or weaken the original Milestone 1 catalog requirements or exit criterion; the complete original exit criterion is met only after Milestone 1B.
 
 ## Milestone 0 Implementation Plan
 

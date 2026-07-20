@@ -2253,6 +2253,20 @@ Exit criteria: clean build, tests, local run, health endpoint, login skeleton, a
 
 ## Milestone 1 - Identity, Branch, Device, Catalog
 
+Milestone 1 is delivered in two deployable sub-milestones. This subdivision preserves every requirement below; it does not remove or defer catalog behavior from the approved Release 1 product.
+
+### Milestone 1A - Identity, Organization, Branches, Devices, and Audit
+
+Deliver:
+
+- Organization and branch foundation.
+- Users, roles, permissions, devices, authentication, authorization, sessions, and employee PIN login.
+- Immutable redacted audit writing and a minimal audit viewer.
+
+Exit criteria: authorized users can be securely provisioned and scoped to branches/devices, with authentication and sensitive changes auditable. Catalog/POS menu behavior is not an exit criterion for 1A.
+
+### Milestone 1B - Catalog and POS Menu
+
 Deliver:
 
 - Users, roles, permissions, branches, devices.

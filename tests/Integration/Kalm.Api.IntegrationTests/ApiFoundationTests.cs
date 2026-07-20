@@ -67,6 +67,18 @@ public sealed class ApiFoundationTests : IClassFixture<WebApplicationFactory<Pro
         Assert.True(body.RootElement.TryGetProperty("traceId", out _));
     }
 
+    [Theory]
+    [InlineData("/api/v1/organization")]
+    [InlineData("/api/v1/branches")]
+    public async Task SliceOne_DoesNotExposeOrganizationAdministrationRoutes(string path)
+    {
+        using var client = _factory.CreateClient();
+
+        using var response = await client.GetAsync(path, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     private sealed record HealthPayload(string Status, string Service);
 
     private sealed record CurrentUserPayload(bool IsAuthenticated, string? DisplayName, string[] Permissions);
