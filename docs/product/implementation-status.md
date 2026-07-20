@@ -4,7 +4,7 @@ Last updated: 2026-07-19
 
 ## Current Milestone
 
-Milestone 0 - Foundation
+Milestone 1A - Identity, Organization, Branches, Devices, and Audit
 
 ## Requirement Checklist
 
@@ -20,9 +20,16 @@ Milestone 0 - Foundation
 | SRD 21 Testing strategy | Verified locally; CI-only security gates pending | Unit, PostgreSQL-backed integration, architecture, and Playwright E2E smoke tests pass. Gitleaks and Trivy execute only on GitHub runners. |
 | SRD 22.2 Local developer experience | Verified | Docker Compose, health checks, migration validation, OpenAPI snapshot commands, guarded development reset, README, and local development guide are present. The reset intentionally seeds no users, credentials, or cafe business data. |
 | SRD 22.3 CI pipeline | Implemented; CI execution pending | GitHub Actions includes restore, fail-closed NuGet high/critical audit policy, format, build, tests, migration/OpenAPI checks, npm audit, Gitleaks, Trivy, and Playwright browser provisioning. |
-| SRD 23 Milestone 0 | Verified locally; CI execution pending | Foundation implementation only. No Milestone 1 features implemented. |
+| SRD 23 Milestone 0 | Verified locally; CI execution pending | Foundation implementation only. |
+| SRD 23 Milestone 1A Slice 1 | Implemented; PostgreSQL validation blocked locally | Organization/Branch persistence and immutable Audit foundation only; no runtime administration route or Angular screen is exposed before authentication. Docker Desktop was unavailable for database-backed validation. |
 | IAM-002 Authentication modes | Not started | Only skeleton endpoint contract exists. Real authentication belongs to Milestone 1. |
 | IAM-004 Roles and permissions | Not started | Not in Milestone 0. |
+
+## Milestone 1 Subdivision
+
+- Milestone 1A delivers Identity, Organization, Branches, Devices, Authentication, Authorization, Sessions, PIN login, and immutable audit writing.
+- Milestone 1B retains the original catalog scope: categories, products, variants, prices, modifiers, availability, POS menu endpoint, catalog screens, and the Kalm seed menu.
+- This subdivision does not remove or weaken the original Milestone 1 catalog requirements or exit criterion; the complete original exit criterion is met only after Milestone 1B.
 
 ## Milestone 0 Implementation Plan
 
@@ -50,5 +57,5 @@ Milestone 0 - Foundation
 - Gitleaks and Trivy are configured in CI but were not run locally because they are runner-based checks.
 - NuGet restore audits direct and transitive packages with `NuGetAuditLevel=high`; `NU1903` and `NU1904` are errors. The local and CI command is `deploy\\scripts\\check-nuget-audit.cmd`.
 - The committed `20260715140000_InitialFoundation` migration is immutable. No additive database migration was required; the current model snapshot has no pending schema operations. Clean and previously-released-database upgrade tests pass.
-- The PostgreSQL 18.4 image and local container are healthy and available on port 54329.
+- The local container uses the pinned official PostgreSQL 18.4 Debian image (`postgres:18.4@sha256:32ca0af8e77bfb8c6610c488e4691f83f972a3e9e64d3b02facf3ab111ad5500`) and is healthy on port 54329.
 - PostgreSQL-backed integration tests create and drop isolated test databases using the `KALM_TEST_POSTGRES_ADMIN` connection string when supplied, or the local Docker defaults otherwise.

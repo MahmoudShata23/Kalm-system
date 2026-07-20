@@ -21,7 +21,7 @@ Milestone 0 must deliver the foundation only and must not generate disconnected 
 - Use `Kalm.Api` as the composition root and API host.
 - Use central NuGet package management in `Directory.Packages.props`.
 - Use exact npm package versions in `apps/web/package.json`.
-- Use PostgreSQL 18.4 in Docker Compose and CI.
+- Use the pinned official PostgreSQL 18.4 Debian image (`postgres:18.4@sha256:32ca0af8e77bfb8c6610c488e4691f83f972a3e9e64d3b02facf3ab111ad5500`) in Docker Compose and CI.
 
 ## Confirmed Stable Versions
 

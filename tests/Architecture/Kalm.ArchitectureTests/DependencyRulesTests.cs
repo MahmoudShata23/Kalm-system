@@ -1,6 +1,10 @@
 using System.Reflection;
 using Kalm.BuildingBlocks.Time;
 using Kalm.Identity;
+using Kalm.Organization;
+using Kalm.Organization.Infrastructure;
+using Kalm.Audit;
+using Kalm.Audit.Infrastructure;
 using Kalm.SharedKernel.Errors;
 
 namespace Kalm.ArchitectureTests;
@@ -35,6 +39,21 @@ public sealed class DependencyRulesTests
         AssertNoReferences(
             typeof(IdentityAssemblyMarker).Assembly,
             ["Kalm.Api", "Microsoft.AspNetCore", "Microsoft.EntityFrameworkCore", "Npgsql"]);
+    }
+
+    [Fact]
+    public void OrganizationAndAuditCore_DoNotDependOnApiOrPersistence()
+    {
+        string[] forbidden = ["Kalm.Api", "Microsoft.AspNetCore", "Microsoft.EntityFrameworkCore", "Npgsql"];
+        AssertNoReferences(typeof(OrganizationAssemblyMarker).Assembly, forbidden);
+        AssertNoReferences(typeof(AuditAssemblyMarker).Assembly, forbidden);
+    }
+
+    [Fact]
+    public void ModuleInfrastructures_DoNotReferenceEachOther()
+    {
+        AssertNoReferences(typeof(OrganizationInfrastructureAssemblyMarker).Assembly, ["Kalm.Audit.Infrastructure"]);
+        AssertNoReferences(typeof(AuditInfrastructureAssemblyMarker).Assembly, ["Kalm.Organization.Infrastructure"]);
     }
 
     private static void AssertNoReferences(Assembly assembly, IReadOnlyCollection<string> forbiddenPrefixes)

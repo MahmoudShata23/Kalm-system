@@ -1,0 +1,20 @@
+# Temporary exceptions for the pinned official PostgreSQL 18.4 Debian image only.
+# Trivy reports these CVEs in /usr/local/bin/gosu, built with Go 1.24.6. The published
+# PostgreSQL 18.4 Debian, Bookworm, and Alpine variants all contain that gosu build;
+# no official PostgreSQL 18.4 image currently incorporates the upstream Go fixes.
+# Expiry: 2026-08-31. Reassess every entry when an official patched PostgreSQL image is published.
+CVE-2025-61726
+CVE-2025-61729
+CVE-2025-68121
+CVE-2026-25679
+CVE-2026-27145
+CVE-2026-32280
+CVE-2026-32281
+CVE-2026-32283
+CVE-2026-33811
+CVE-2026-33814
+CVE-2026-39820
+CVE-2026-39822
+CVE-2026-39836
+CVE-2026-42499
+CVE-2026-42504

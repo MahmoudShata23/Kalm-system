@@ -3,6 +3,10 @@
   <Project Path="src/Kalm.BuildingBlocks/Kalm.BuildingBlocks.csproj" />
   <Project Path="src/Kalm.SharedKernel/Kalm.SharedKernel.csproj" />
   <Project Path="src/Modules/Kalm.Identity/Kalm.Identity.csproj" />
+  <Project Path="src/Modules/Kalm.Organization/Kalm.Organization.csproj" />
+  <Project Path="src/Modules/Kalm.Organization.Infrastructure/Kalm.Organization.Infrastructure.csproj" />
+  <Project Path="src/Modules/Kalm.Audit/Kalm.Audit.csproj" />
+  <Project Path="src/Modules/Kalm.Audit.Infrastructure/Kalm.Audit.Infrastructure.csproj" />
   <Project Path="tests/Architecture/Kalm.ArchitectureTests/Kalm.ArchitectureTests.csproj" />
   <Project Path="tests/Integration/Kalm.Api.IntegrationTests/Kalm.Api.IntegrationTests.csproj" />
   <Project Path="tests/Unit/Kalm.UnitTests/Kalm.UnitTests.csproj" />

@@ -3,6 +3,7 @@ using Kalm.Api.Features.Health;
 using Kalm.Api.Infrastructure.Correlation;
 using Kalm.Api.Infrastructure.ProblemDetails;
 using Kalm.Api.Persistence;
+using Kalm.Api.Transactions;
 using Kalm.BuildingBlocks.Time;
 using Kalm.SharedKernel.Time;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -12,6 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddProblemDetails(options => options.ConfigureKalmProblemDetails());
 builder.Services.AddOpenApi();
 builder.Services.AddKalmDatabase(builder.Configuration);
+builder.Services.AddScoped<SliceOneOrganizationAuditTransactionCoordinator>();
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddHealthChecks()
     .AddCheck<PostgreSqlReadinessCheck>("postgresql");

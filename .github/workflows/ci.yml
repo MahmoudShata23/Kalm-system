@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:18.4
+        image: postgres:18.4@sha256:32ca0af8e77bfb8c6610c488e4691f83f972a3e9e64d3b02facf3ab111ad5500
         env:
           POSTGRES_DB: kalm
           POSTGRES_USER: kalm
@@ -92,8 +92,9 @@ jobs:
       - name: Scan PostgreSQL container image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: postgres:18.4
+          image-ref: postgres:18.4@sha256:32ca0af8e77bfb8c6610c488e4691f83f972a3e9e64d3b02facf3ab111ad5500
           format: table
           exit-code: 1
           ignore-unfixed: true
           severity: CRITICAL,HIGH
+          trivyignores: .trivyignore

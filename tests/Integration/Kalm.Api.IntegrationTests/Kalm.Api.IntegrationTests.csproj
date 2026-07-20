@@ -2,6 +2,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Kalm.Api\Kalm.Api.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Kalm.Organization.Infrastructure\Kalm.Organization.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Kalm.Audit.Infrastructure\Kalm.Audit.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
