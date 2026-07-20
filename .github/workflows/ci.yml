@@ -97,4 +97,6 @@ jobs:
           exit-code: 1
           ignore-unfixed: true
           severity: CRITICAL,HIGH
+          # Debian's ssl-cert package creates this publicly known test key; keep secret scanning enabled elsewhere.
+          skip-files: /etc/ssl/private/ssl-cert-snakeoil.key
           trivyignores: .trivyignore

@@ -23,12 +23,152 @@
         }
       }
     },
+    "/api/v1/auth/csrf": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "operationId": "GetCsrfToken",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CsrfTokenResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "operationId": "ManagementLogin",
+        "parameters": [
+          {
+            "name": "X-XSRF-TOKEN",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUserResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "operationId": "ManagementLogout",
+        "parameters": [
+          {
+            "name": "X-XSRF-TOKEN",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/me": {
       "get": {
         "tags": [
           "Authentication"
         ],
-        "summary": "Returns the current authentication skeleton state.",
         "operationId": "GetCurrentUser",
         "responses": {
           "200": {
@@ -43,38 +183,30 @@
           }
         }
       }
-    },
-    "/api/v1/auth/login": {
-      "post": {
-        "tags": [
-          "Authentication"
-        ],
-        "summary": "Foundation login skeleton. Real credential validation is Milestone 1.",
-        "operationId": "Login",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LoginRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
     }
   },
   "components": {
     "schemas": {
+      "CsrfTokenResponse": {
+        "required": [
+          "requestToken"
+        ],
+        "type": "object",
+        "properties": {
+          "requestToken": {
+            "type": "string"
+          }
+        }
+      },
       "CurrentUserResponse": {
         "required": [
           "isAuthenticated",
+          "username",
           "displayName",
+          "preferredLanguage",
+          "inactivityExpiresAtUtc",
+          "absoluteExpiresAtUtc",
+          "reauthenticationValidUntilUtc",
           "permissions"
         ],
         "type": "object",
@@ -82,11 +214,44 @@
           "isAuthenticated": {
             "type": "boolean"
           },
+          "username": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "displayName": {
             "type": [
               "null",
               "string"
             ]
+          },
+          "preferredLanguage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "inactivityExpiresAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "absoluteExpiresAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "reauthenticationValidUntilUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           },
           "permissions": {
             "type": "array",
@@ -97,19 +262,61 @@
         }
       },
       "LoginRequest": {
-        "required": [
-          "identifier",
-          "secret"
-        ],
         "type": "object",
         "properties": {
           "identifier": {
             "type": "string"
           },
-          "secret": {
+          "password": {
             "type": "string"
           }
         }
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "ManagementCookie": {
+        "type": "apiKey",
+        "description": "Opaque server-maintained management session cookie.",
+        "name": "__Host-Kalm.Management",
+        "in": "cookie"
       }
     }
   },

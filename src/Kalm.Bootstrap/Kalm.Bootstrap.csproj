@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Kalm.BuildingBlocks\Kalm.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\Modules\Kalm.Identity.Infrastructure\Kalm.Identity.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Kalm.Organization.Infrastructure\Kalm.Organization.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Kalm.Audit.Infrastructure\Kalm.Audit.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Npgsql" />
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Kalm.Api.IntegrationTests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+</Project>

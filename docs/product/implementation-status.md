@@ -1,6 +1,6 @@
 # Kalm Implementation Status
 
-Last updated: 2026-07-19
+Last updated: 2026-07-21
 
 ## Current Milestone
 
@@ -17,12 +17,13 @@ Milestone 1A - Identity, Organization, Branches, Devices, and Audit
 | SRD 10.2 Backend rules | Verified | Problem Details, correlation IDs, injected clock, EF Core PostgreSQL context, immutable historical migration, and clean/upgrade migration tests pass. |
 | SRD 10.3 Frontend rules | Verified | Standalone Angular shell, strict TypeScript, signals, zoneless configuration, PrimeNG Styled Mode with KalmPreset, and Arabic/English localized copy with LTR/RTL and keyboard-accessibility E2E checks pass. |
 | SRD 17.8 Observability | Implemented for M0 | Correlation ID middleware and health endpoints added. Full OpenTelemetry is deferred beyond Milestone 0. |
-| SRD 21 Testing strategy | Verified locally; CI-only security gates pending | Unit, PostgreSQL-backed integration, architecture, and Playwright E2E smoke tests pass. Gitleaks and Trivy execute only on GitHub runners. |
+| SRD 21 Testing strategy | Verified locally for Slice 2 | Unit, PostgreSQL-backed integration, architecture, OpenAPI, Angular, Playwright, NuGet/npm audit, Trivy, and Gitleaks gates pass. |
 | SRD 22.2 Local developer experience | Verified | Docker Compose, health checks, migration validation, OpenAPI snapshot commands, guarded development reset, README, and local development guide are present. The reset intentionally seeds no users, credentials, or cafe business data. |
 | SRD 22.3 CI pipeline | Implemented; CI execution pending | GitHub Actions includes restore, fail-closed NuGet high/critical audit policy, format, build, tests, migration/OpenAPI checks, npm audit, Gitleaks, Trivy, and Playwright browser provisioning. |
 | SRD 23 Milestone 0 | Verified locally; CI execution pending | Foundation implementation only. |
-| SRD 23 Milestone 1A Slice 1 | Implemented; PostgreSQL validation blocked locally | Organization/Branch persistence and immutable Audit foundation only; no runtime administration route or Angular screen is exposed before authentication. Docker Desktop was unavailable for database-backed validation. |
-| IAM-002 Authentication modes | Not started | Only skeleton endpoint contract exists. Real authentication belongs to Milestone 1. |
+| SRD 23 Milestone 1A Slice 1 | Completed and merged | Organization/Branch persistence and immutable Audit foundation; no runtime administration route or Angular screen is exposed. |
+| Milestone 1A Slice 2 | Implemented and verified locally | Operational bootstrap, management password login, server-maintained sessions, secure cookies, CSRF, logout, anonymous-safe `/auth/me`, and bilingual PrimeNG login only. |
+| IAM-002 Authentication modes | Partially implemented | Management password authentication is implemented. PIN and device authentication remain deferred. |
 | IAM-004 Roles and permissions | Not started | Not in Milestone 0. |
 
 ## Milestone 1 Subdivision

@@ -7,6 +7,7 @@ using Kalm.Audit.Infrastructure.Persistence;
 using Kalm.Organization.Domain;
 using Kalm.Organization.Domain.ValueObjects;
 using Kalm.Organization.Infrastructure.Persistence;
+using Kalm.Identity.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -18,6 +19,8 @@ public sealed class MilestoneOneAMigrationTests
     private const string FoundationMigration = "20260715140000_InitialFoundation";
     private const string OrganizationMigration = "20260720181706_AddOrganizationFoundation";
     private const string AuditMigration = "20260720181822_AddAuditFoundation";
+    private const string AuditAuthenticationMigration = "20260720202409_ExtendManagementAuthenticationAuditActions";
+    private const string IdentityMigration = "20260720202353_AddManagementAuthentication";
 
     [Fact]
     public async Task CleanDatabase_AppliesAllContextsWithSeparateHistoryTablesAndAuditTrigger()
@@ -31,6 +34,11 @@ public sealed class MilestoneOneAMigrationTests
         Assert.Equal("\"__EFMigrationsHistory\"", await ResolveRegClassAsync(database.ConnectionString, "\"__EFMigrationsHistory\""));
         Assert.Equal("organization.__ef_migrations_history", await ResolveRegClassAsync(database.ConnectionString, "organization.__ef_migrations_history"));
         Assert.Equal("audit.__ef_migrations_history", await ResolveRegClassAsync(database.ConnectionString, "audit.__ef_migrations_history"));
+        Assert.Equal("identity.__ef_migrations_history", await ResolveRegClassAsync(database.ConnectionString, "identity.__ef_migrations_history"));
+        Assert.Equal("identity.users", await ResolveRegClassAsync(database.ConnectionString, "identity.users"));
+        Assert.Equal("identity.password_credentials", await ResolveRegClassAsync(database.ConnectionString, "identity.password_credentials"));
+        Assert.Equal("identity.user_sessions", await ResolveRegClassAsync(database.ConnectionString, "identity.user_sessions"));
+        Assert.Equal("identity.login_attempts", await ResolveRegClassAsync(database.ConnectionString, "identity.login_attempts"));
         Assert.Equal("trg_audit_logs_immutable", await ResolveTriggerAsync(database.ConnectionString));
         Assert.Equal("organization.ux_organizations_singleton_key", await ResolveRegClassAsync(database.ConnectionString, "organization.ux_organizations_singleton_key"));
         Assert.Equal("organization.ux_branches_organization_id_code", await ResolveRegClassAsync(database.ConnectionString, "organization.ux_branches_organization_id_code"));
@@ -41,9 +49,11 @@ public sealed class MilestoneOneAMigrationTests
         await using var platform = CreatePlatformContext(database.ConnectionString);
         await using var organization = CreateOrganizationContext(database.ConnectionString);
         await using var audit = CreateAuditContext(database.ConnectionString);
+        await using var identity = CreateIdentityContext(database.ConnectionString);
         Assert.Equal([FoundationMigration], await platform.Database.GetAppliedMigrationsAsync());
         Assert.Equal([OrganizationMigration], await organization.Database.GetAppliedMigrationsAsync());
-        Assert.Equal([AuditMigration], await audit.Database.GetAppliedMigrationsAsync());
+        Assert.Equal([AuditMigration, AuditAuthenticationMigration], await audit.Database.GetAppliedMigrationsAsync());
+        Assert.Equal([IdentityMigration], await identity.Database.GetAppliedMigrationsAsync());
     }
 
     [Fact]
@@ -60,6 +70,64 @@ public sealed class MilestoneOneAMigrationTests
         await ApplyAllMigrationsAsync(database.ConnectionString);
         await using var check = CreatePlatformContext(database.ConnectionString);
         Assert.Equal("slice-one-upgrade", await check.SchemaMarkers.Select(marker => marker.Name).SingleAsync());
+    }
+
+    [Fact]
+    public async Task ExactSliceOneDatabase_UpgradesWithoutChangingExistingHistoriesOrSentinelData()
+    {
+        await using var database = await SliceOneDatabase.CreateAsync();
+        Guid organizationId = Guid.NewGuid();
+        Guid auditId = Guid.NewGuid();
+        await using (var platform = CreatePlatformContext(database.ConnectionString))
+        {
+            await platform.Database.MigrateAsync(FoundationMigration);
+            platform.SchemaMarkers.Add(new SchemaMarker(Guid.NewGuid(), "slice-two-platform-sentinel", new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero)));
+            await platform.SaveChangesAsync();
+        }
+
+        await using (var organization = CreateOrganizationContext(database.ConnectionString))
+        {
+            await organization.Database.MigrateAsync(OrganizationMigration);
+            organization.Organizations.Add(CreateOrganization(organizationId, "Slice One Sentinel", new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero)));
+            await organization.SaveChangesAsync();
+        }
+
+        await using (var audit = CreateAuditContext(database.ConnectionString))
+        {
+            await audit.Database.MigrateAsync(AuditMigration);
+            audit.AuditEntries.Add(CreateAuditEntry(auditId));
+            await audit.SaveChangesAsync();
+        }
+
+        await ApplyAllMigrationsAsync(database.ConnectionString);
+
+        await using var platformCheck = CreatePlatformContext(database.ConnectionString);
+        await using var organizationCheck = CreateOrganizationContext(database.ConnectionString);
+        await using var auditCheck = CreateAuditContext(database.ConnectionString);
+        await using var identityCheck = CreateIdentityContext(database.ConnectionString);
+        Assert.Equal("slice-two-platform-sentinel", await platformCheck.SchemaMarkers.Select(marker => marker.Name).SingleAsync());
+        Assert.Equal(organizationId, await organizationCheck.Organizations.Select(organization => organization.Id).SingleAsync());
+        Assert.Equal(auditId, await auditCheck.AuditEntries.Select(entry => entry.Id).SingleAsync());
+        Assert.Equal([FoundationMigration], await platformCheck.Database.GetAppliedMigrationsAsync());
+        Assert.Equal([OrganizationMigration], await organizationCheck.Database.GetAppliedMigrationsAsync());
+        Assert.Equal([AuditMigration, AuditAuthenticationMigration], await auditCheck.Database.GetAppliedMigrationsAsync());
+        Assert.Equal([IdentityMigration], await identityCheck.Database.GetAppliedMigrationsAsync());
+    }
+
+    [Fact]
+    public async Task CurrentModels_HaveNoPendingChangesForAnyDbContext()
+    {
+        await using var database = await SliceOneDatabase.CreateAsync();
+        await ApplyAllMigrationsAsync(database.ConnectionString);
+
+        await using var platform = CreatePlatformContext(database.ConnectionString);
+        await using var organization = CreateOrganizationContext(database.ConnectionString);
+        await using var audit = CreateAuditContext(database.ConnectionString);
+        await using var identity = CreateIdentityContext(database.ConnectionString);
+        Assert.False(platform.Database.HasPendingModelChanges());
+        Assert.False(organization.Database.HasPendingModelChanges());
+        Assert.False(audit.Database.HasPendingModelChanges());
+        Assert.False(identity.Database.HasPendingModelChanges());
     }
 
     [Fact]
@@ -208,11 +276,14 @@ public sealed class MilestoneOneAMigrationTests
         await organization.Database.MigrateAsync();
         await using var audit = CreateAuditContext(connectionString);
         await audit.Database.MigrateAsync();
+        await using var identity = CreateIdentityContext(connectionString);
+        await identity.Database.MigrateAsync();
     }
 
     private static KalmDbContext CreatePlatformContext(string connectionString) => new(new DbContextOptionsBuilder<KalmDbContext>().UseNpgsql(connectionString).Options);
     private static OrganizationDbContext CreateOrganizationContext(string connectionString) => new(new DbContextOptionsBuilder<OrganizationDbContext>().UseNpgsql(connectionString, options => options.MigrationsHistoryTable("__ef_migrations_history", "organization")).Options);
     private static AuditDbContext CreateAuditContext(string connectionString) => new(new DbContextOptionsBuilder<AuditDbContext>().UseNpgsql(connectionString, options => options.MigrationsHistoryTable("__ef_migrations_history", "audit")).Options);
+    private static IdentityDbContext CreateIdentityContext(string connectionString) => new(new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(connectionString, options => options.MigrationsHistoryTable("__ef_migrations_history", "identity")).Options);
 
     private static async Task<Guid> InsertOrganizationAsync(string connectionString, string name, DateTimeOffset now)
     {

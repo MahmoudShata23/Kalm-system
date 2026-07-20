@@ -6,7 +6,9 @@ public static class AuditRedactionPolicy
 {
     private static readonly HashSet<string> ProhibitedKeys = new(StringComparer.OrdinalIgnoreCase)
     {
-        "password", "pin", "hash", "salt", "pepper", "cookie", "token", "pairingCode", "csrf", "authorization", "requestBody"
+        "password", "secret", "pin", "hash", "salt", "pepper", "credential", "cookie", "session", "sessionId",
+        "token", "requestToken", "pairingCode", "activationCode", "resetCode", "identifier", "email", "csrf",
+        "authorization", "requestBody"
     };
 
     public static string? CreateJson(IReadOnlyDictionary<string, string?>? values)
