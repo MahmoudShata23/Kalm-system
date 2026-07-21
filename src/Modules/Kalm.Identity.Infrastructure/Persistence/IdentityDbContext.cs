@@ -135,7 +135,11 @@ public sealed class IdentityDbContext : DbContext
 
         modelBuilder.Entity<Role>(builder =>
         {
-            builder.ToTable("roles", table => table.HasCheckConstraint("ck_roles_status", "status in ('Active', 'Archived')"));
+            builder.ToTable("roles", table =>
+            {
+                table.HasCheckConstraint("ck_roles_status", "status in ('Active', 'Archived')");
+                table.HasCheckConstraint("ck_roles_archived_state", "(status = 'Active' and archived_at_utc is null) or (status = 'Archived' and archived_at_utc is not null)");
+            });
             builder.HasKey(role => role.Id);
             builder.Property(role => role.Id).HasColumnName("id");
             builder.Property(role => role.OrganizationId).HasColumnName("organization_id").IsRequired();
@@ -149,6 +153,7 @@ public sealed class IdentityDbContext : DbContext
             builder.Property(role => role.ArchivedAtUtc).HasColumnName("archived_at_utc").HasColumnType("timestamptz");
             builder.HasIndex(role => new { role.OrganizationId, role.NormalizedName }).IsUnique().HasDatabaseName("ux_roles_organization_id_normalized_name");
             builder.HasIndex(role => new { role.OrganizationId, role.SystemKey }).IsUnique().HasFilter("system_key is not null").HasDatabaseName("ux_roles_organization_id_system_key");
+            builder.HasIndex(role => new { role.OrganizationId, role.Status, role.NormalizedName, role.Id }).HasDatabaseName("ix_roles_organization_status_normalized_name_id");
             builder.HasAlternateKey(role => new { role.Id, role.OrganizationId }).HasName("ak_roles_id_organization_id");
         });
 
@@ -180,6 +185,7 @@ public sealed class IdentityDbContext : DbContext
             builder.Property(assignment => assignment.Version).HasColumnName("version").IsConcurrencyToken().IsRequired();
             builder.HasIndex(assignment => new { assignment.UserId, assignment.RoleId }).IsUnique().HasFilter("revoked_at_utc is null").HasDatabaseName("ux_user_role_assignments_active");
             builder.HasIndex(assignment => new { assignment.UserId, assignment.RevokedAtUtc }).HasDatabaseName("ix_user_role_assignments_user_id_revoked_at_utc");
+            builder.HasIndex(assignment => new { assignment.RoleId, assignment.UserId }).HasFilter("revoked_at_utc is null").HasDatabaseName("ix_user_role_assignments_role_id_user_id_active");
             builder.HasOne<User>().WithMany().HasForeignKey(assignment => new { assignment.UserId, assignment.OrganizationId }).HasPrincipalKey(user => new { user.Id, user.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
             builder.HasOne<Role>().WithMany().HasForeignKey(assignment => new { assignment.RoleId, assignment.OrganizationId }).HasPrincipalKey(role => new { role.Id, role.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
         });

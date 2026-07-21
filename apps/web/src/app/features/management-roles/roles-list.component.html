@@ -1,0 +1,73 @@
+<section class="roles" aria-labelledby="roles-heading">
+  <header class="title-row">
+    <div>
+      <h2 id="roles-heading">{{ copy().heading }}</h2>
+      <p>{{ copy().supporting }}</p>
+    </div>
+    <a pButton routerLink="/management/roles/new" class="create-link">
+      <span class="pi pi-plus" aria-hidden="true"></span>
+      <span>{{ copy().create }}</span>
+    </a>
+  </header>
+
+  <form class="filters" (ngSubmit)="refresh(true)" role="search">
+    <label>
+      <span>{{ copy().search }}</span>
+      <input pInputText name="role-search" type="search" maxlength="120" [placeholder]="copy().searchPlaceholder"
+        [ngModel]="search()" (ngModelChange)="search.set($event)" />
+    </label>
+    <label>
+      <span>{{ copy().status }}</span>
+      <select name="role-status" [ngModel]="status()" (ngModelChange)="changeStatus($event)">
+        <option value="active">{{ copy().active }}</option>
+        <option value="archived">{{ copy().archived }}</option>
+        <option value="all">{{ copy().all }}</option>
+      </select>
+    </label>
+    <p-button type="submit" icon="pi pi-search" [label]="copy().search" [loading]="loading()" />
+  </form>
+
+  <p class="live" aria-live="polite">
+    @if (loading()) { {{ copy().loading }} }
+  </p>
+
+  @if (errorCode()) {
+    <div class="state error" role="alert">
+      <p>{{ copy().loadError }}</p>
+      <p-button type="button" icon="pi pi-refresh" [label]="copy().retry" (onClick)="refresh()" />
+    </div>
+  } @else if (!loading() && list()?.items?.length === 0) {
+    <div class="state" role="status">{{ copy().empty }}</div>
+  } @else if (list(); as result) {
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th scope="col">{{ copy().name }}</th>
+          <th scope="col">{{ copy().status }}</th>
+          <th scope="col">{{ copy().permissions }}</th>
+          <th scope="col">{{ copy().assignments }}</th>
+          <th scope="col"><span class="visually-hidden">{{ copy().actions }}</span></th>
+        </tr></thead>
+        <tbody>
+          @for (role of result.items; track role.id) {
+            <tr>
+              <td>
+                <strong>{{ role.name }}</strong>
+                @if (role.isProtectedSystemRole) { <span class="pi pi-lock" aria-hidden="true"></span> }
+              </td>
+              <td>{{ role.status === "active" ? copy().active : copy().archived }}</td>
+              <td>{{ role.permissionCount }}</td>
+              <td>{{ role.activeAssignmentCount }}</td>
+              <td><a pButton [routerLink]="['/management/roles', role.id]" class="edit-link">{{ copy().edit }}</a></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <footer class="paging">
+      <p-button type="button" icon="pi pi-chevron-left" [label]="copy().previous" [disabled]="!canPrevious()" (onClick)="previous()" />
+      <span>{{ result.page }}</span>
+      <p-button type="button" icon="pi pi-chevron-right" iconPos="right" [label]="copy().next" [disabled]="!canNext()" (onClick)="next()" />
+    </footer>
+  }
+</section>

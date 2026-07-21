@@ -2,7 +2,7 @@ import { TestBed } from "@angular/core/testing";
 import { ActivatedRouteSnapshot, Router, RouterStateSnapshot } from "@angular/router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ManagementAuthService } from "./management-auth.service";
-import { accessDeniedGuard, loginGuard, managementGuard } from "./management-auth.guard";
+import { accessDeniedGuard, loginGuard, managementGuard, rolesManageGuard } from "./management-auth.guard";
 
 describe("management authorization guards", () => {
   const createUrlTree = vi.fn((commands: string[]) => ({ redirect: commands[0] }));
@@ -65,5 +65,21 @@ describe("management authorization guards", () => {
       {} as ActivatedRouteSnapshot,
       { url: "/management/access-denied" } as RouterStateSnapshot));
     expect(deniedResult).toEqual({ redirect: "/management/login" });
+  });
+
+  it("requires both management.access and roles.manage for role routes", async () => {
+    auth.user.mockReturnValue({ isAuthenticated: true });
+    auth.hasPermission.mockImplementation((permission: string) => permission === "management.access");
+
+    const denied = await TestBed.runInInjectionContext(() => rolesManageGuard(
+      {} as ActivatedRouteSnapshot,
+      { url: "/management/roles" } as RouterStateSnapshot));
+    expect(denied).toEqual({ redirect: "/management/access-denied" });
+
+    auth.hasPermission.mockReturnValue(true);
+    const allowed = await TestBed.runInInjectionContext(() => rolesManageGuard(
+      {} as ActivatedRouteSnapshot,
+      { url: "/management/roles" } as RouterStateSnapshot));
+    expect(allowed).toBe(true);
   });
 });

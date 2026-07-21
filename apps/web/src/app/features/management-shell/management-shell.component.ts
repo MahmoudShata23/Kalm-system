@@ -1,13 +1,15 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from "@angular/core";
-import { Router } from "@angular/router";
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from "@angular/router";
 import { ButtonModule } from "primeng/button";
 import { ManagementAuthService } from "../../core/auth/management-auth.service";
 import { LanguageService } from "../../core/i18n/language.service";
+import { ROLES_MANAGE_PERMISSION } from "../../core/auth/management-permissions";
+import { ROLES_COPY } from "../management-roles/management-roles.copy";
 
 @Component({
   selector: "kalm-management-shell",
   standalone: true,
-  imports: [ButtonModule],
+  imports: [ButtonModule, RouterLink, RouterLinkActive, RouterOutlet],
   templateUrl: "./management-shell.component.html",
   styleUrl: "./management-shell.component.scss",
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -20,6 +22,8 @@ export class ManagementShellComponent {
   protected readonly busy = signal(false);
   protected readonly user = this.auth.user;
   protected readonly copy = computed(() => this.language.copy().managementShell);
+  protected readonly rolesCopy = computed(() => ROLES_COPY[this.language.language()]);
+  protected readonly canManageRoles = computed(() => this.auth.hasPermission(ROLES_MANAGE_PERMISSION));
   protected readonly scopeLabel = computed(() => this.user().branchAccess?.scope === "allOrganizationBranches"
     ? this.copy().allBranches
     : this.copy().assignedBranches);

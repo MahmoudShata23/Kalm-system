@@ -1,0 +1,87 @@
+<section class="editor" aria-labelledby="role-heading">
+  <header class="editor-header">
+    <div>
+      <h2 id="role-heading">{{ isNew ? copy().newHeading : copy().editHeading }}</h2>
+      @if (detail()?.role?.isProtectedSystemRole) {
+        <p class="protection"><span class="pi pi-lock" aria-hidden="true"></span> {{ copy().protectedHeading }}</p>
+      }
+    </div>
+    <a pButton routerLink="/management/roles" class="back-link">{{ copy().cancel }}</a>
+  </header>
+
+  <p class="live" aria-live="polite">{{ announcement() }}</p>
+
+  @if (loading()) {
+    <div class="state" role="status">{{ copy().loading }}</div>
+  } @else if (errorCode() && !conflictEtag()) {
+    <div class="state error" role="alert">
+      <p>{{ errorMessage() }}</p>
+      <p-button type="button" icon="pi pi-refresh" [label]="copy().retry" (onClick)="reloadLatest()" />
+    </div>
+  } @else {
+    @if (detail()?.role?.isProtectedSystemRole) {
+      <div class="notice" role="note"><strong>{{ copy().protectedHeading }}</strong><p>{{ copy().protectedMessage }}</p></div>
+    } @else if (detail()?.role?.status === "archived") {
+      <div class="notice" role="note">{{ copy().archivedMessage }}</div>
+    }
+
+    @if (conflictEtag()) {
+      <div class="conflict" role="alert">
+        <h3>{{ copy().conflictHeading }}</h3>
+        <p>{{ copy().conflictMessage }}</p>
+        <p-button type="button" icon="pi pi-refresh" [label]="copy().reloadLatest" (onClick)="reloadLatest()" />
+      </div>
+    }
+
+    <form (ngSubmit)="save()">
+      <label class="name-field" for="role-name">{{ copy().roleName }}</label>
+      <input pInputText id="role-name" type="text" maxlength="120" [formControl]="name" [readOnly]="readOnly()" />
+      @if (submitted() && name.invalid) { <p class="field-error" role="alert">{{ copy().roleNameRequired }}</p> }
+
+      <div class="permission-heading">
+        <div><h3>{{ copy().permissions }}</h3><p>{{ selectedCodes().size }} {{ copy().selected }}</p></div>
+        <label>
+          <span>{{ copy().permissionSearch }}</span>
+          <input pInputText type="search" maxlength="120" [placeholder]="copy().permissionSearchPlaceholder"
+            [value]="permissionSearch()" (input)="permissionSearch.set($any($event.target).value)" />
+        </label>
+      </div>
+      @if (submitted() && selectedCodes().size === 0) { <p class="field-error" role="alert">{{ copy().permissionRequired }}</p> }
+
+      <div class="groups">
+        @for (group of groups(); track group.code) {
+          <fieldset>
+            <legend>{{ group.label }}</legend>
+            @for (permission of group.permissions; track permission.code) {
+              <label class="permission-row">
+                <input type="checkbox" [checked]="selectedCodes().has(permission.code)" [disabled]="readOnly()"
+                  (change)="togglePermission(permission.code, $any($event.target).checked)" />
+                <span><strong>{{ permissionLabel(permission) }}</strong><small>{{ permissionDescription(permission) }}</small><code dir="ltr">{{ permission.code }}</code></span>
+              </label>
+            }
+          </fieldset>
+        }
+      </div>
+
+      @if (!readOnly()) {
+        <div class="form-actions">
+          <p-button type="button" icon="pi pi-check" [label]="saving() ? copy().saving : copy().save" [loading]="saving()" (onClick)="save()" />
+          @if (!isNew) {
+            <p-button type="button" severity="danger" icon="pi pi-archive" [label]="copy().archive" (onClick)="archiveConfirmation.set(true)" />
+          }
+        </div>
+      }
+    </form>
+
+    @if (archiveConfirmation()) {
+      <section class="archive-dialog" role="dialog" aria-modal="true" aria-labelledby="archive-heading">
+        <h3 id="archive-heading">{{ copy().archiveHeading }}</h3>
+        <p>{{ copy().archiveMessage }}</p>
+        <div>
+          <p-button type="button" severity="danger" [label]="copy().confirmArchive" [loading]="saving()" (onClick)="archive()" />
+          <p-button type="button" severity="secondary" [label]="copy().dismiss" (onClick)="archiveConfirmation.set(false)" />
+        </div>
+      </section>
+    }
+  }
+</section>

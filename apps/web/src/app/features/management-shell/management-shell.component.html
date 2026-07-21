@@ -7,6 +7,12 @@
     <p-button type="button" icon="pi pi-sign-out" [label]="copy().logout" [loading]="busy()" (onClick)="logout()" />
   </header>
 
+  @if (canManageRoles()) {
+    <nav class="management-nav" [attr.aria-label]="rolesCopy().heading">
+      <a routerLink="/management/roles" routerLinkActive="active">{{ rolesCopy().nav }}</a>
+    </nav>
+  }
+
   <div class="scope" aria-live="polite">
     <h2>{{ copy().branchAccess }}</h2>
     <p>{{ scopeLabel() }}</p>
@@ -14,9 +20,5 @@
     <p>{{ copy().operationalBranches }}: {{ user().branchAccess?.operationalBranchIds?.length ?? 0 }}</p>
   </div>
 
-  <div class="empty-state" role="status">
-    <span class="pi pi-compass" aria-hidden="true"></span>
-    <h2>{{ copy().noModulesHeading }}</h2>
-    <p>{{ copy().noModulesMessage }}</p>
-  </div>
+  <router-outlet />
 </section>
