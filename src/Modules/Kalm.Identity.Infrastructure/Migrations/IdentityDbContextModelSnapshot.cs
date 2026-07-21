@@ -149,6 +149,163 @@ namespace Kalm.Identity.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Kalm.Identity.Domain.Permission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<DateTimeOffset?>("RetiredAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("retired_at_utc");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ux_permissions_code");
+
+                    b.ToTable("permissions", "identity", t =>
+                        {
+                            t.HasCheckConstraint("ck_permissions_code", "code ~ '^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$'");
+
+                            t.HasCheckConstraint("ck_permissions_retired_state", "(status = 'Active' and retired_at_utc is null) or (status = 'Retired' and retired_at_utc is not null)");
+
+                            t.HasCheckConstraint("ck_permissions_status", "status in ('Active', 'Retired')");
+                        });
+                });
+
+            modelBuilder.Entity("Kalm.Identity.Domain.Role", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("ArchivedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("archived_at_utc");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("normalized_name");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("SystemKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("system_key");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("Id", "OrganizationId")
+                        .HasName("ak_roles_id_organization_id");
+
+                    b.HasIndex("OrganizationId", "NormalizedName")
+                        .IsUnique()
+                        .HasDatabaseName("ux_roles_organization_id_normalized_name");
+
+                    b.HasIndex("OrganizationId", "SystemKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_roles_organization_id_system_key")
+                        .HasFilter("system_key is not null");
+
+                    b.ToTable("roles", "identity", t =>
+                        {
+                            t.HasCheckConstraint("ck_roles_status", "status in ('Active', 'Archived')");
+                        });
+                });
+
+            modelBuilder.Entity("Kalm.Identity.Domain.RolePermission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("GrantedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("granted_at_utc");
+
+                    b.Property<Guid>("PermissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("permission_id");
+
+                    b.Property<DateTimeOffset?>("RevokedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("revoked_at_utc");
+
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("role_id");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PermissionId");
+
+                    b.HasIndex("RoleId", "PermissionId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_role_permissions_active")
+                        .HasFilter("revoked_at_utc is null");
+
+                    b.ToTable("role_permissions", "identity", t =>
+                        {
+                            t.HasCheckConstraint("ck_role_permissions_revocation", "revoked_at_utc is null or revoked_at_utc >= granted_at_utc");
+                        });
+                });
+
             modelBuilder.Entity("Kalm.Identity.Domain.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -163,6 +320,10 @@ namespace Kalm.Identity.Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("ArchivedAtUtc")
                         .HasColumnType("timestamptz")
                         .HasColumnName("archived_at_utc");
+
+                    b.Property<long>("AuthorizationVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("authorization_version");
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamptz")
@@ -223,6 +384,9 @@ namespace Kalm.Identity.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("Id", "OrganizationId")
+                        .HasName("ak_users_id_organization_id");
+
                     b.HasIndex("NormalizedEmail")
                         .IsUnique()
                         .HasDatabaseName("ux_users_normalized_email")
@@ -237,6 +401,58 @@ namespace Kalm.Identity.Infrastructure.Migrations
                             t.HasCheckConstraint("ck_users_preferred_language", "preferred_language in ('en', 'ar')");
 
                             t.HasCheckConstraint("ck_users_status", "status in ('Suspended', 'Active', 'Archived')");
+                        });
+                });
+
+            modelBuilder.Entity("Kalm.Identity.Domain.UserRoleAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("AssignedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("assigned_at_utc");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<DateTimeOffset?>("RevokedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("revoked_at_utc");
+
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("role_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RoleId", "OrganizationId");
+
+                    b.HasIndex("UserId", "OrganizationId");
+
+                    b.HasIndex("UserId", "RevokedAtUtc")
+                        .HasDatabaseName("ix_user_role_assignments_user_id_revoked_at_utc");
+
+                    b.HasIndex("UserId", "RoleId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_user_role_assignments_active")
+                        .HasFilter("revoked_at_utc is null");
+
+                    b.ToTable("user_role_assignments", "identity", t =>
+                        {
+                            t.HasCheckConstraint("ck_user_role_assignments_revocation", "revoked_at_utc is null or revoked_at_utc >= assigned_at_utc");
                         });
                 });
 
@@ -314,6 +530,38 @@ namespace Kalm.Identity.Infrastructure.Migrations
                     b.HasOne("Kalm.Identity.Domain.User", null)
                         .WithOne()
                         .HasForeignKey("Kalm.Identity.Domain.PasswordCredential", "UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Kalm.Identity.Domain.RolePermission", b =>
+                {
+                    b.HasOne("Kalm.Identity.Domain.Permission", null)
+                        .WithMany()
+                        .HasForeignKey("PermissionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Kalm.Identity.Domain.Role", null)
+                        .WithMany()
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Kalm.Identity.Domain.UserRoleAssignment", b =>
+                {
+                    b.HasOne("Kalm.Identity.Domain.Role", null)
+                        .WithMany()
+                        .HasForeignKey("RoleId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Kalm.Identity.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

@@ -83,6 +83,9 @@ namespace Kalm.Organization.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("Id", "OrganizationId")
+                        .HasName("ak_branches_id_organization_id");
+
                     b.HasIndex("OrganizationId", "Code")
                         .IsUnique()
                         .HasDatabaseName("ux_branches_organization_id_code");
@@ -157,11 +160,137 @@ namespace Kalm.Organization.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Kalm.Organization.Domain.UserBranchAccess", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("scope");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("Id", "OrganizationId")
+                        .HasName("ak_user_branch_access_id_organization_id");
+
+                    b.HasIndex("OrganizationId");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_user_branch_access_user_id");
+
+                    b.ToTable("user_branch_access", "organization", t =>
+                        {
+                            t.HasCheckConstraint("ck_user_branch_access_scope", "scope in ('AssignedBranches', 'AllOrganizationBranches')");
+                        });
+                });
+
+            modelBuilder.Entity("Kalm.Organization.Domain.UserBranchAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AccessId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("access_id");
+
+                    b.Property<DateTimeOffset>("AssignedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("assigned_at_utc");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<DateTimeOffset?>("RevokedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("revoked_at_utc");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccessId", "BranchId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_user_branch_assignments_active")
+                        .HasFilter("revoked_at_utc is null");
+
+                    b.HasIndex("AccessId", "OrganizationId");
+
+                    b.HasIndex("BranchId", "OrganizationId");
+
+                    b.ToTable("user_branch_assignments", "organization", t =>
+                        {
+                            t.HasCheckConstraint("ck_user_branch_assignments_revocation", "revoked_at_utc is null or revoked_at_utc >= assigned_at_utc");
+                        });
+                });
+
             modelBuilder.Entity("Kalm.Organization.Domain.Branch", b =>
                 {
                     b.HasOne("Kalm.Organization.Domain.Organization", null)
                         .WithMany()
                         .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Kalm.Organization.Domain.UserBranchAccess", b =>
+                {
+                    b.HasOne("Kalm.Organization.Domain.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Kalm.Organization.Domain.UserBranchAssignment", b =>
+                {
+                    b.HasOne("Kalm.Organization.Domain.UserBranchAccess", null)
+                        .WithMany()
+                        .HasForeignKey("AccessId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Kalm.Organization.Domain.Branch", null)
+                        .WithMany()
+                        .HasForeignKey("BranchId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

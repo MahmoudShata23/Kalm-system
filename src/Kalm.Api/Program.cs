@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Threading.RateLimiting;
 using Kalm.Api.Configuration;
 using Kalm.Api.Features.Authentication;
+using Kalm.Api.Features.Authorization;
 using Kalm.Api.Features.Health;
 using Kalm.Api.Infrastructure.Correlation;
 using Kalm.Api.Infrastructure.ProblemDetails;
@@ -11,6 +12,7 @@ using Kalm.Api.Transactions;
 using Kalm.BuildingBlocks.Time;
 using Kalm.SharedKernel.Time;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.OpenApi;
 
@@ -59,6 +61,10 @@ builder.Services.AddOptions<ManagementAuthenticationOptions>()
 builder.Services.AddScoped<SliceOneOrganizationAuditTransactionCoordinator>();
 builder.Services.AddScoped<ManagementAuthenticationAuditTransactionCoordinator>();
 builder.Services.AddScoped<ManagementCookieEvents>();
+builder.Services.AddScoped<EffectiveAuthorizationResolver>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
+builder.Services.AddScoped<IAuthorizationHandler, OperationalBranchAuthorizationHandler>();
 builder.Services.AddSingleton<DummyPasswordHash>();
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddAntiforgery(options =>
@@ -84,7 +90,7 @@ builder.Services.AddAuthentication(ManagementAuthenticationConstants.Scheme)
     });
 builder.Services.AddOptions<CookieAuthenticationOptions>(ManagementAuthenticationConstants.Scheme)
     .Configure<IClock>((options, clock) => options.TimeProvider = new ClockTimeProvider(clock));
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(KalmPolicies.AddKalmAuthorization);
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;

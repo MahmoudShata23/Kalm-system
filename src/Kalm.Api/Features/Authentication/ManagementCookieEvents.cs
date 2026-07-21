@@ -1,4 +1,5 @@
 using Kalm.Api.Configuration;
+using Kalm.Api.Features.Authorization;
 using Kalm.Identity.Domain;
 using Kalm.Identity.Infrastructure.Persistence;
 using Kalm.SharedKernel.Time;
@@ -14,12 +15,18 @@ public sealed class ManagementCookieEvents : CookieAuthenticationEvents
     private readonly IdentityDbContext _identity;
     private readonly IClock _clock;
     private readonly ManagementAuthenticationOptions _options;
+    private readonly EffectiveAuthorizationResolver _authorizationResolver;
 
-    public ManagementCookieEvents(IdentityDbContext identity, IClock clock, IOptions<ManagementAuthenticationOptions> options)
+    public ManagementCookieEvents(
+        IdentityDbContext identity,
+        IClock clock,
+        IOptions<ManagementAuthenticationOptions> options,
+        EffectiveAuthorizationResolver authorizationResolver)
     {
         _identity = identity;
         _clock = clock;
         _options = options.Value;
+        _authorizationResolver = authorizationResolver;
     }
 
     public override async Task ValidatePrincipal(CookieValidatePrincipalContext context)
@@ -58,8 +65,9 @@ public sealed class ManagementCookieEvents : CookieAuthenticationEvents
             join user in _identity.Users.AsNoTracking() on session.UserId equals user.Id
             where session.Id == sessionId
             select new ManagementSessionSnapshot(
-                session.Id, user.Id, user.Username, user.DisplayName, user.PreferredLanguage,
-                session.InactivityExpiresAtUtc, session.AbsoluteExpiresAtUtc, session.LastReauthenticatedAtUtc))
+                session.Id, user.Id, user.OrganizationId, user.Username, user.DisplayName, user.PreferredLanguage,
+                session.InactivityExpiresAtUtc, session.AbsoluteExpiresAtUtc, session.LastReauthenticatedAtUtc,
+                EffectiveAuthorizationSnapshot.Empty(user.Id, user.OrganizationId)))
             .SingleOrDefaultAsync(context.HttpContext.RequestAborted);
 
         if (snapshot is null)
@@ -68,7 +76,9 @@ public sealed class ManagementCookieEvents : CookieAuthenticationEvents
             return;
         }
 
-        context.HttpContext.Items[ManagementAuthenticationConstants.SessionItemKey] = snapshot;
+        EffectiveAuthorizationSnapshot authorization = await _authorizationResolver.ResolveAsync(
+            snapshot.UserId, snapshot.OrganizationId, context.HttpContext.RequestAborted);
+        context.HttpContext.Items[ManagementAuthenticationConstants.SessionItemKey] = snapshot with { Authorization = authorization };
         context.ShouldRenew = false;
     }
 

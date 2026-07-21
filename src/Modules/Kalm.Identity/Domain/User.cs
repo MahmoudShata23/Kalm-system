@@ -26,6 +26,7 @@ public sealed class User
         PreferredLanguage = NormalizeLanguage(preferredLanguage);
         Status = UserStatus.Suspended;
         Version = 1;
+        AuthorizationVersion = 1;
         CreatedAtUtc = now;
         UpdatedAtUtc = now;
     }
@@ -40,6 +41,7 @@ public sealed class User
     public string PreferredLanguage { get; private set; } = string.Empty;
     public UserStatus Status { get; private set; }
     public long Version { get; private set; }
+    public long AuthorizationVersion { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; private set; }
     public DateTimeOffset UpdatedAtUtc { get; private set; }
     public DateTimeOffset? ActivatedAtUtc { get; private set; }
@@ -63,6 +65,13 @@ public sealed class User
 
         Status = UserStatus.Active;
         ActivatedAtUtc = now;
+        AdvanceVersion(now);
+    }
+
+    public void AdvanceAuthorizationVersion(DateTimeOffset now)
+    {
+        EnsureUtc(now);
+        AuthorizationVersion++;
         AdvanceVersion(now);
     }
 

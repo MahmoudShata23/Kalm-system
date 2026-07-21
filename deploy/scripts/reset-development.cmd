@@ -27,4 +27,4 @@ if errorlevel 1 exit /b %ERRORLEVEL%
 dotnet tool run dotnet-ef database update --project src\Modules\Kalm.Audit.Infrastructure\Kalm.Audit.Infrastructure.csproj --startup-project src\Kalm.Api\Kalm.Api.csproj --context AuditDbContext
 if errorlevel 1 exit /b %ERRORLEVEL%
 
-echo Development reset complete. No users, credentials, or cafe business data were seeded. Use the operational Bootstrap CLI to create the initial management user.
+echo Development reset complete. No users, credentials, roles, assignments, or cafe business data were seeded. Use the operational Bootstrap CLI to create and authorize the initial management user.

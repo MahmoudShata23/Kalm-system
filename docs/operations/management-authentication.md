@@ -2,6 +2,8 @@
 
 Milestone 1A Slice 2 supports only management password authentication and the trusted operational creation of the first management user. It does not expose a bootstrap, activation, reset, user-administration, role, permission, PIN, device, or MFA endpoint.
 
+Milestone 1A Slice 3 adds trusted operational authorization provisioning. It still exposes no bootstrap, provisioning, user, role, permission, or branch administration HTTP endpoint.
+
 ## Runtime configuration
 
 Supply production and staging values through deployment secrets or an approved secret manager:
@@ -45,6 +47,17 @@ Automation must append `--password-stdin` and provide one password line through 
 
 The command atomically creates or reuses the single Organization, creates the first Branch when needed, creates the initial Suspended user and PendingSetup credential, hashes the password, completes credential setup, activates the user, and appends both audit events on one local PostgreSQL transaction. It refuses to run when any Identity user already exists. Concurrent attempts produce exactly one success.
 
+The same clean-install transaction now provisions the versioned first-administrator system role, the complete current IAM-004 permission set including `management.access`, the user-role assignment, and `AssignedBranches` access to only the initial branch. Append `--all-organization-branches` only when the trusted operator explicitly intends current and future organization-wide scope.
+
+For a database that already completed Slice 2 bootstrap, apply every Slice 3 migration and run exactly one explicit scope form:
+
+```text
+dotnet run --project src/Kalm.Bootstrap -- provision-first-administrator --username <username> --branch-code <code> [--branch-code <code> ...]
+dotnet run --project src/Kalm.Bootstrap -- provision-first-administrator --username <username> --all-organization-branches
+```
+
+The target user and password credential must both be active. Exact reruns are idempotent; a conflicting user, permission set, or scope is refused. Concurrent identical attempts converge through a transaction-scoped PostgreSQL advisory lock and uniqueness constraints. This command accepts no password.
+
 Exit codes:
 
 - `0`: completed successfully.
@@ -53,6 +66,7 @@ Exit codes:
 - `3`: Identity already initialized.
 - `4`: required migrations are missing.
 - `5`: required CLI configuration is invalid.
+- `6`: first-administrator authorization conflicts with the requested target, permission set, or branch scope.
 
 ## Cookies, CSRF, and sessions
 
@@ -61,6 +75,8 @@ Exit codes:
 The browser calls `GET /api/v1/auth/csrf`, keeps the returned request token only in memory, and sends it as `X-XSRF-TOKEN` on unsafe same-origin API requests. It refreshes the token at startup and after login, logout, or another identity transition. Login and logout require CSRF. `/auth/csrf` is non-cacheable.
 
 Every authenticated request reloads the authoritative session, user, and credential state. Inactivity expires after 20 minutes, absolute lifetime after eight hours, and the reserved recent-reauthentication window is five minutes. Activity updates are concurrency-safe and cannot extend beyond absolute expiry. Logout revokes only the current session and clears its cookie only after the revocation and audit event commit together.
+
+Every authenticated request also resolves active roles, grants, compiled permission codes, explicit branch scope, and Organization/Branch operational status from PostgreSQL. Authorization is not cached. Roles, permissions, branch data, account state, and authorization version are never stored in the cookie. Permission removal affects the next request without ending an otherwise valid authentication session.
 
 Login allows five failures in 15 minutes, then locks for 15 minutes; attempts while locked do not extend the lock. The API permits ten login requests per minute per transport source address with no queue. Arbitrary `X-Forwarded-For` values are ignored. No forwarded headers are accepted by the application in this slice; any future trusted-proxy configuration requires explicit known proxy/network configuration and tests. Multi-instance production deployments also require ingress-level rate limiting.
 

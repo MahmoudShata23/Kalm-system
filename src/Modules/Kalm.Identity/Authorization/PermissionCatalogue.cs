@@ -1,0 +1,141 @@
+using System.Collections.Frozen;
+
+namespace Kalm.Identity.Authorization;
+
+public static class PermissionCatalogue
+{
+    public const string FirstAdministratorPermissionSetVersion = "2026.07.slice3.v1";
+    public const string FirstAdministratorSystemRoleKey = "kalm.first-administrator.v1";
+
+    private static readonly string[] CodesArray =
+    [
+        PermissionCodes.AuditView,
+        PermissionCodes.BackupsManage,
+        PermissionCodes.BranchesManage,
+        PermissionCodes.BranchesView,
+        PermissionCodes.CashPayIn,
+        PermissionCodes.CashPayOut,
+        PermissionCodes.CashSafeDrop,
+        PermissionCodes.CashViewExpected,
+        PermissionCodes.CatalogManage,
+        PermissionCodes.CatalogView,
+        PermissionCodes.CostsView,
+        PermissionCodes.DevicesManage,
+        PermissionCodes.DiscountsConfigure,
+        PermissionCodes.ExpensesApprove,
+        PermissionCodes.ExpensesCreate,
+        PermissionCodes.ExpensesManage,
+        PermissionCodes.ExpensesView,
+        PermissionCodes.InventoryAdjust,
+        PermissionCodes.InventoryCostView,
+        PermissionCodes.InventoryCount,
+        PermissionCodes.InventoryReceive,
+        PermissionCodes.InventoryTransfer,
+        PermissionCodes.InventoryView,
+        PermissionCodes.InventoryWaste,
+        PermissionCodes.KdsUpdate,
+        PermissionCodes.KdsView,
+        PermissionCodes.ManagementAccess,
+        PermissionCodes.OrdersEditSubmitted,
+        PermissionCodes.OrdersReprint,
+        PermissionCodes.OrdersView,
+        PermissionCodes.PosDiscountBasic,
+        PermissionCodes.PosDiscountOverride,
+        PermissionCodes.PosRefund,
+        PermissionCodes.PosSell,
+        PermissionCodes.PosVoid,
+        PermissionCodes.PricesManage,
+        PermissionCodes.PrintersManage,
+        PermissionCodes.PurchasingApprove,
+        PermissionCodes.PurchasingCreate,
+        PermissionCodes.PurchasingReceive,
+        PermissionCodes.PurchasingView,
+        PermissionCodes.RecipesManage,
+        PermissionCodes.RecipesView,
+        PermissionCodes.ReportsCost,
+        PermissionCodes.ReportsExport,
+        PermissionCodes.ReportsFinance,
+        PermissionCodes.ReportsInventory,
+        PermissionCodes.ReportsSales,
+        PermissionCodes.RolesManage,
+        PermissionCodes.SettingsManage,
+        PermissionCodes.ShiftsClose,
+        PermissionCodes.ShiftsOpen,
+        PermissionCodes.ShiftsReopen,
+        PermissionCodes.ShiftsViewAll,
+        PermissionCodes.SupplierPaymentsManage,
+        PermissionCodes.SuppliersManage,
+        PermissionCodes.UsersManage,
+        PermissionCodes.UsersView
+    ];
+
+    private static readonly string[] FirstAdministratorCodesV1 =
+    [
+        PermissionCodes.AuditView,
+        PermissionCodes.BackupsManage,
+        PermissionCodes.BranchesManage,
+        PermissionCodes.BranchesView,
+        PermissionCodes.CashPayIn,
+        PermissionCodes.CashPayOut,
+        PermissionCodes.CashSafeDrop,
+        PermissionCodes.CashViewExpected,
+        PermissionCodes.CatalogManage,
+        PermissionCodes.CatalogView,
+        PermissionCodes.CostsView,
+        PermissionCodes.DevicesManage,
+        PermissionCodes.DiscountsConfigure,
+        PermissionCodes.ExpensesApprove,
+        PermissionCodes.ExpensesCreate,
+        PermissionCodes.ExpensesManage,
+        PermissionCodes.ExpensesView,
+        PermissionCodes.InventoryAdjust,
+        PermissionCodes.InventoryCostView,
+        PermissionCodes.InventoryCount,
+        PermissionCodes.InventoryReceive,
+        PermissionCodes.InventoryTransfer,
+        PermissionCodes.InventoryView,
+        PermissionCodes.InventoryWaste,
+        PermissionCodes.KdsUpdate,
+        PermissionCodes.KdsView,
+        PermissionCodes.ManagementAccess,
+        PermissionCodes.OrdersEditSubmitted,
+        PermissionCodes.OrdersReprint,
+        PermissionCodes.OrdersView,
+        PermissionCodes.PosDiscountBasic,
+        PermissionCodes.PosDiscountOverride,
+        PermissionCodes.PosRefund,
+        PermissionCodes.PosSell,
+        PermissionCodes.PosVoid,
+        PermissionCodes.PricesManage,
+        PermissionCodes.PrintersManage,
+        PermissionCodes.PurchasingApprove,
+        PermissionCodes.PurchasingCreate,
+        PermissionCodes.PurchasingReceive,
+        PermissionCodes.PurchasingView,
+        PermissionCodes.RecipesManage,
+        PermissionCodes.RecipesView,
+        PermissionCodes.ReportsCost,
+        PermissionCodes.ReportsExport,
+        PermissionCodes.ReportsFinance,
+        PermissionCodes.ReportsInventory,
+        PermissionCodes.ReportsSales,
+        PermissionCodes.RolesManage,
+        PermissionCodes.SettingsManage,
+        PermissionCodes.ShiftsClose,
+        PermissionCodes.ShiftsOpen,
+        PermissionCodes.ShiftsReopen,
+        PermissionCodes.ShiftsViewAll,
+        PermissionCodes.SupplierPaymentsManage,
+        PermissionCodes.SuppliersManage,
+        PermissionCodes.UsersManage,
+        PermissionCodes.UsersView
+    ];
+
+    private static readonly FrozenSet<string> CodesSet = CodesArray.ToFrozenSet(StringComparer.Ordinal);
+
+    public static IReadOnlyList<string> AllCodes { get; } = Array.AsReadOnly(CodesArray);
+
+    public static IReadOnlyList<string> FirstAdministratorPermissionCodes { get; } = Array.AsReadOnly(FirstAdministratorCodesV1);
+
+    public static bool Contains(string code) => CodesSet.Contains(code);
+}

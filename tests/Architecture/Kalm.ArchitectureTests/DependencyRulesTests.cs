@@ -7,6 +7,8 @@ using Kalm.Organization.Infrastructure;
 using Kalm.Audit;
 using Kalm.Audit.Infrastructure;
 using Kalm.SharedKernel.Errors;
+using Kalm.Api.Features.Authorization;
+using Kalm.Identity.Authorization;
 
 namespace Kalm.ArchitectureTests;
 
@@ -39,23 +41,44 @@ public sealed class DependencyRulesTests
     {
         AssertNoReferences(
             typeof(IdentityAssemblyMarker).Assembly,
-            ["Kalm.Api", "Microsoft.AspNetCore", "Microsoft.EntityFrameworkCore", "Npgsql"]);
+            ["Kalm.Api", "Kalm.Organization", "Microsoft.AspNetCore", "Microsoft.EntityFrameworkCore", "Npgsql"]);
     }
 
     [Fact]
     public void OrganizationAndAuditCore_DoNotDependOnApiOrPersistence()
     {
         string[] forbidden = ["Kalm.Api", "Microsoft.AspNetCore", "Microsoft.EntityFrameworkCore", "Npgsql"];
-        AssertNoReferences(typeof(OrganizationAssemblyMarker).Assembly, forbidden);
+        AssertNoReferences(
+            typeof(OrganizationAssemblyMarker).Assembly,
+            [.. forbidden, "Kalm.Identity"]);
         AssertNoReferences(typeof(AuditAssemblyMarker).Assembly, forbidden);
     }
 
     [Fact]
     public void ModuleInfrastructures_DoNotReferenceEachOther()
     {
-        AssertNoReferences(typeof(OrganizationInfrastructureAssemblyMarker).Assembly, ["Kalm.Audit.Infrastructure"]);
-        AssertNoReferences(typeof(AuditInfrastructureAssemblyMarker).Assembly, ["Kalm.Organization.Infrastructure"]);
+        AssertNoReferences(
+            typeof(OrganizationInfrastructureAssemblyMarker).Assembly,
+            ["Kalm.Identity.Infrastructure", "Kalm.Audit.Infrastructure"]);
+        AssertNoReferences(
+            typeof(AuditInfrastructureAssemblyMarker).Assembly,
+            ["Kalm.Identity.Infrastructure", "Kalm.Organization.Infrastructure"]);
         AssertNoReferences(typeof(IdentityInfrastructureAssemblyMarker).Assembly, ["Kalm.Organization.Infrastructure", "Kalm.Audit.Infrastructure"]);
+    }
+
+    [Fact]
+    public void AuthorizationPolicies_ArePermissionBasedAndDoNotReceiveRoleMetadata()
+    {
+        Assert.Equal("Kalm.ManagementAccess", KalmPolicies.ManagementAccess);
+        Assert.Contains(PermissionCodes.ManagementAccess, PermissionCatalogue.AllCodes);
+        Type[] handlerConstructorTypes = typeof(PermissionAuthorizationHandler).GetConstructors()
+            .SelectMany(constructor => constructor.GetParameters())
+            .Select(parameter => parameter.ParameterType)
+            .ToArray();
+        Assert.DoesNotContain(handlerConstructorTypes, type => type.Name.Contains("Role", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            typeof(PermissionAuthorizationHandler).GetFields(BindingFlags.Instance | BindingFlags.NonPublic),
+            field => field.FieldType.Name.Contains("Role", StringComparison.Ordinal));
     }
 
     private static void AssertNoReferences(Assembly assembly, IReadOnlyCollection<string> forbiddenPrefixes)

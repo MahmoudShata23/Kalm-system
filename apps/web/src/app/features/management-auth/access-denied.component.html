@@ -1,0 +1,6 @@
+<section class="access-card" aria-labelledby="access-denied-heading">
+  <span class="pi pi-lock" aria-hidden="true"></span>
+  <h1 id="access-denied-heading">{{ copy().heading }}</h1>
+  <p>{{ copy().message }}</p>
+  <p-button type="button" icon="pi pi-sign-out" [label]="copy().logout" [loading]="busy()" (onClick)="logout()" />
+</section>

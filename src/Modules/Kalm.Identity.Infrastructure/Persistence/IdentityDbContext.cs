@@ -14,6 +14,10 @@ public sealed class IdentityDbContext : DbContext
     public DbSet<PasswordCredential> PasswordCredentials => Set<PasswordCredential>();
     public DbSet<UserSession> UserSessions => Set<UserSession>();
     public DbSet<LoginAttempt> LoginAttempts => Set<LoginAttempt>();
+    public DbSet<Permission> Permissions => Set<Permission>();
+    public DbSet<Role> Roles => Set<Role>();
+    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+    public DbSet<UserRoleAssignment> UserRoleAssignments => Set<UserRoleAssignment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -37,12 +41,14 @@ public sealed class IdentityDbContext : DbContext
             builder.Property(user => user.PreferredLanguage).HasColumnName("preferred_language").HasMaxLength(2).IsRequired();
             builder.Property(user => user.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(20).IsRequired();
             builder.Property(user => user.Version).HasColumnName("version").IsConcurrencyToken().IsRequired();
+            builder.Property(user => user.AuthorizationVersion).HasColumnName("authorization_version").IsRequired();
             builder.Property(user => user.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamptz").IsRequired();
             builder.Property(user => user.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamptz").IsRequired();
             builder.Property(user => user.ActivatedAtUtc).HasColumnName("activated_at_utc").HasColumnType("timestamptz");
             builder.Property(user => user.ArchivedAtUtc).HasColumnName("archived_at_utc").HasColumnType("timestamptz");
             builder.HasIndex(user => user.NormalizedUsername).IsUnique().HasDatabaseName("ux_users_normalized_username");
             builder.HasIndex(user => user.NormalizedEmail).IsUnique().HasFilter("normalized_email is not null").HasDatabaseName("ux_users_normalized_email");
+            builder.HasAlternateKey(user => new { user.Id, user.OrganizationId }).HasName("ak_users_id_organization_id");
         });
 
         modelBuilder.Entity<PasswordCredential>(builder =>
@@ -108,6 +114,74 @@ public sealed class IdentityDbContext : DbContext
             builder.HasIndex(attempt => new { attempt.IdentifierFingerprint, attempt.OccurredAtUtc }).HasDatabaseName("ix_login_attempts_identifier_fingerprint_occurred_at_utc");
             builder.HasIndex(attempt => new { attempt.NetworkIdentifier, attempt.OccurredAtUtc }).HasDatabaseName("ix_login_attempts_network_identifier_occurred_at_utc");
             builder.HasOne<User>().WithMany().HasForeignKey(attempt => attempt.UserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Permission>(builder =>
+        {
+            builder.ToTable("permissions", table =>
+            {
+                table.HasCheckConstraint("ck_permissions_code", "code ~ '^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$'");
+                table.HasCheckConstraint("ck_permissions_status", "status in ('Active', 'Retired')");
+                table.HasCheckConstraint("ck_permissions_retired_state", "(status = 'Active' and retired_at_utc is null) or (status = 'Retired' and retired_at_utc is not null)");
+            });
+            builder.HasKey(permission => permission.Id);
+            builder.Property(permission => permission.Id).HasColumnName("id");
+            builder.Property(permission => permission.Code).HasColumnName("code").HasMaxLength(100).IsRequired();
+            builder.Property(permission => permission.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(20).IsRequired();
+            builder.Property(permission => permission.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamptz").IsRequired();
+            builder.Property(permission => permission.RetiredAtUtc).HasColumnName("retired_at_utc").HasColumnType("timestamptz");
+            builder.HasIndex(permission => permission.Code).IsUnique().HasDatabaseName("ux_permissions_code");
+        });
+
+        modelBuilder.Entity<Role>(builder =>
+        {
+            builder.ToTable("roles", table => table.HasCheckConstraint("ck_roles_status", "status in ('Active', 'Archived')"));
+            builder.HasKey(role => role.Id);
+            builder.Property(role => role.Id).HasColumnName("id");
+            builder.Property(role => role.OrganizationId).HasColumnName("organization_id").IsRequired();
+            builder.Property(role => role.Name).HasColumnName("name").HasMaxLength(120).IsRequired();
+            builder.Property(role => role.NormalizedName).HasColumnName("normalized_name").HasMaxLength(120).IsRequired();
+            builder.Property(role => role.SystemKey).HasColumnName("system_key").HasMaxLength(100);
+            builder.Property(role => role.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(20).IsRequired();
+            builder.Property(role => role.Version).HasColumnName("version").IsConcurrencyToken().IsRequired();
+            builder.Property(role => role.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamptz").IsRequired();
+            builder.Property(role => role.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamptz").IsRequired();
+            builder.Property(role => role.ArchivedAtUtc).HasColumnName("archived_at_utc").HasColumnType("timestamptz");
+            builder.HasIndex(role => new { role.OrganizationId, role.NormalizedName }).IsUnique().HasDatabaseName("ux_roles_organization_id_normalized_name");
+            builder.HasIndex(role => new { role.OrganizationId, role.SystemKey }).IsUnique().HasFilter("system_key is not null").HasDatabaseName("ux_roles_organization_id_system_key");
+            builder.HasAlternateKey(role => new { role.Id, role.OrganizationId }).HasName("ak_roles_id_organization_id");
+        });
+
+        modelBuilder.Entity<RolePermission>(builder =>
+        {
+            builder.ToTable("role_permissions", table => table.HasCheckConstraint("ck_role_permissions_revocation", "revoked_at_utc is null or revoked_at_utc >= granted_at_utc"));
+            builder.HasKey(grant => grant.Id);
+            builder.Property(grant => grant.Id).HasColumnName("id");
+            builder.Property(grant => grant.RoleId).HasColumnName("role_id").IsRequired();
+            builder.Property(grant => grant.PermissionId).HasColumnName("permission_id").IsRequired();
+            builder.Property(grant => grant.GrantedAtUtc).HasColumnName("granted_at_utc").HasColumnType("timestamptz").IsRequired();
+            builder.Property(grant => grant.RevokedAtUtc).HasColumnName("revoked_at_utc").HasColumnType("timestamptz");
+            builder.Property(grant => grant.Version).HasColumnName("version").IsConcurrencyToken().IsRequired();
+            builder.HasIndex(grant => new { grant.RoleId, grant.PermissionId }).IsUnique().HasFilter("revoked_at_utc is null").HasDatabaseName("ux_role_permissions_active");
+            builder.HasOne<Role>().WithMany().HasForeignKey(grant => grant.RoleId).OnDelete(DeleteBehavior.Restrict);
+            builder.HasOne<Permission>().WithMany().HasForeignKey(grant => grant.PermissionId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<UserRoleAssignment>(builder =>
+        {
+            builder.ToTable("user_role_assignments", table => table.HasCheckConstraint("ck_user_role_assignments_revocation", "revoked_at_utc is null or revoked_at_utc >= assigned_at_utc"));
+            builder.HasKey(assignment => assignment.Id);
+            builder.Property(assignment => assignment.Id).HasColumnName("id");
+            builder.Property(assignment => assignment.OrganizationId).HasColumnName("organization_id").IsRequired();
+            builder.Property(assignment => assignment.UserId).HasColumnName("user_id").IsRequired();
+            builder.Property(assignment => assignment.RoleId).HasColumnName("role_id").IsRequired();
+            builder.Property(assignment => assignment.AssignedAtUtc).HasColumnName("assigned_at_utc").HasColumnType("timestamptz").IsRequired();
+            builder.Property(assignment => assignment.RevokedAtUtc).HasColumnName("revoked_at_utc").HasColumnType("timestamptz");
+            builder.Property(assignment => assignment.Version).HasColumnName("version").IsConcurrencyToken().IsRequired();
+            builder.HasIndex(assignment => new { assignment.UserId, assignment.RoleId }).IsUnique().HasFilter("revoked_at_utc is null").HasDatabaseName("ux_user_role_assignments_active");
+            builder.HasIndex(assignment => new { assignment.UserId, assignment.RevokedAtUtc }).HasDatabaseName("ix_user_role_assignments_user_id_revoked_at_utc");
+            builder.HasOne<User>().WithMany().HasForeignKey(assignment => new { assignment.UserId, assignment.OrganizationId }).HasPrincipalKey(user => new { user.Id, user.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
+            builder.HasOne<Role>().WithMany().HasForeignKey(assignment => new { assignment.RoleId, assignment.OrganizationId }).HasPrincipalKey(role => new { role.Id, role.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

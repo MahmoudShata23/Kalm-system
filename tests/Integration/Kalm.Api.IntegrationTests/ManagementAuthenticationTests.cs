@@ -5,10 +5,12 @@ using Kalm.Api.Features.Authentication;
 using Kalm.Api.Persistence;
 using Kalm.Audit.Infrastructure.Persistence;
 using Kalm.Identity.Domain;
+using Kalm.Identity.Authorization;
 using Kalm.Identity.Domain.ValueObjects;
 using Kalm.Identity.Infrastructure.Persistence;
 using Kalm.Identity.Infrastructure.Security;
 using Kalm.Organization.Domain.ValueObjects;
+using Kalm.Organization.Domain;
 using Kalm.Organization.Infrastructure.Persistence;
 using Kalm.SharedKernel.Time;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -74,6 +76,7 @@ public sealed class ManagementAuthenticationTests
         Assert.True(meBody.RootElement.GetProperty("isAuthenticated").GetBoolean());
         Assert.Equal("manager", meBody.RootElement.GetProperty("username").GetString());
         Assert.Empty(meBody.RootElement.GetProperty("permissions").EnumerateArray());
+        Assert.Equal(JsonValueKind.Null, meBody.RootElement.GetProperty("branchAccess").ValueKind);
 
         string logoutCsrf = (await GetCsrfAsync(client)).Token;
         using var logoutRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
@@ -276,6 +279,153 @@ public sealed class ManagementAuthenticationTests
         Assert.True(body.RootElement.GetProperty("isAuthenticated").GetBoolean());
     }
 
+    [Fact]
+    public async Task ProvisionedAssignedAuthorization_IsResolvedAndSortedOnEveryMeRequest()
+    {
+        await using var database = await AuthDatabase.CreateAsync();
+        await database.MigrateAndSeedAsync();
+        Guid branchId = await database.ProvisionAuthorizationAsync(BranchAccessScope.AssignedBranches, secondBranch: false);
+        using WebApplicationFactory<Program> factory = CreateFactory(database.ConnectionString, new MutableClock(InitialTime), database.KeyPath);
+        using HttpClient client = CreateHttpsClient(factory);
+        using HttpResponseMessage login = await LoginAsync(client, (await GetCsrfAsync(client)).Token, Password);
+        login.EnsureSuccessStatusCode();
+
+        using HttpResponseMessage me = await client.GetAsync("/api/v1/auth/me");
+        using JsonDocument body = await JsonDocument.ParseAsync(await me.Content.ReadAsStreamAsync());
+        Assert.Equal(
+            new[] { PermissionCodes.ManagementAccess, PermissionCodes.UsersView }.OrderBy(code => code),
+            body.RootElement.GetProperty("permissions").EnumerateArray().Select(value => value.GetString()));
+        JsonElement branchAccess = body.RootElement.GetProperty("branchAccess");
+        Assert.Equal("assignedBranches", branchAccess.GetProperty("scope").GetString());
+        Assert.Equal(branchId, branchAccess.GetProperty("branchIds")[0].GetGuid());
+        Assert.Equal(branchId, branchAccess.GetProperty("operationalBranchIds")[0].GetGuid());
+
+        await using (OrganizationDbContext organization = database.CreateOrganizationContext())
+        {
+            (await organization.Branches.SingleAsync()).ChangeStatus(
+                BranchStatus.Setup, InitialTime.AddMinutes(2));
+            await organization.SaveChangesAsync();
+        }
+
+        using JsonDocument setupBranchBody = JsonDocument.Parse(await client.GetStringAsync("/api/v1/auth/me"));
+        JsonElement setupBranchAccess = setupBranchBody.RootElement.GetProperty("branchAccess");
+        Assert.Equal(branchId, setupBranchAccess.GetProperty("branchIds")[0].GetGuid());
+        Assert.Empty(setupBranchAccess.GetProperty("operationalBranchIds").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task EffectivePermissions_UnionMultipleRolesDeduplicateAndIgnoreRetiredPermissions()
+    {
+        await using var database = await AuthDatabase.CreateAsync();
+        await database.MigrateAndSeedAsync();
+        await database.ProvisionAuthorizationAsync(BranchAccessScope.AssignedBranches, secondBranch: false);
+        await using (IdentityDbContext identity = database.CreateIdentityContext())
+        {
+            User user = await identity.Users.SingleAsync();
+            var secondRole = Role.Create(
+                Guid.NewGuid(), user.OrganizationId, new RoleName("Display names do not authorize"),
+                "ignored.system-key", InitialTime);
+            var archivedRole = Role.Create(
+                Guid.NewGuid(), user.OrganizationId, new RoleName("Archived role name"), null, InitialTime);
+            identity.Roles.AddRange(secondRole, archivedRole);
+            Permission[] secondRolePermissions = await identity.Permissions
+                .Where(permission => permission.Code == PermissionCodes.ManagementAccess
+                    || permission.Code == PermissionCodes.BackupsManage
+                    || permission.Code == PermissionCodes.RolesManage
+                    || permission.Code == PermissionCodes.UsersManage)
+                .ToArrayAsync();
+            foreach (Permission permission in secondRolePermissions)
+            {
+                RolePermission grant = RolePermission.Grant(Guid.NewGuid(), secondRole.Id, permission.Id, InitialTime);
+                if (permission.Code == PermissionCodes.BackupsManage)
+                {
+                    grant.Revoke(InitialTime.AddMinutes(1));
+                }
+
+                identity.RolePermissions.Add(grant);
+            }
+
+            Permission auditPermission = await identity.Permissions.SingleAsync(
+                permission => permission.Code == PermissionCodes.AuditView);
+            identity.RolePermissions.Add(RolePermission.Grant(
+                Guid.NewGuid(), archivedRole.Id, auditPermission.Id, InitialTime));
+            archivedRole.Archive(InitialTime.AddMinutes(1));
+            var unknownPermission = Permission.Create(
+                Guid.NewGuid(), new PermissionCode("unknown.permission"), InitialTime);
+            identity.Permissions.Add(unknownPermission);
+            identity.RolePermissions.Add(RolePermission.Grant(
+                Guid.NewGuid(), secondRole.Id, unknownPermission.Id, InitialTime));
+            identity.UserRoleAssignments.Add(UserRoleAssignment.Assign(
+                Guid.NewGuid(), user.OrganizationId, user.Id, secondRole.Id, InitialTime));
+            identity.UserRoleAssignments.Add(UserRoleAssignment.Assign(
+                Guid.NewGuid(), user.OrganizationId, user.Id, archivedRole.Id, InitialTime));
+            secondRolePermissions.Single(permission => permission.Code == PermissionCodes.UsersManage)
+                .Retire(InitialTime.AddMinutes(1));
+            user.AdvanceAuthorizationVersion(InitialTime.AddMinutes(1));
+            await identity.SaveChangesAsync();
+        }
+
+        using WebApplicationFactory<Program> factory = CreateFactory(
+            database.ConnectionString, new MutableClock(InitialTime), database.KeyPath);
+        using HttpClient client = CreateHttpsClient(factory);
+        (await LoginAsync(client, (await GetCsrfAsync(client)).Token, Password)).EnsureSuccessStatusCode();
+
+        using JsonDocument body = JsonDocument.Parse(await client.GetStringAsync("/api/v1/auth/me"));
+        Assert.Equal(
+            new[] { PermissionCodes.ManagementAccess, PermissionCodes.RolesManage, PermissionCodes.UsersView }
+                .OrderBy(code => code, StringComparer.Ordinal),
+            body.RootElement.GetProperty("permissions").EnumerateArray().Select(value => value.GetString()));
+    }
+
+    [Fact]
+    public async Task AllOrganizationBranches_ListsEveryBranchButOnlyActiveBranchesAsOperational()
+    {
+        await using var database = await AuthDatabase.CreateAsync();
+        await database.MigrateAndSeedAsync();
+        Guid activeBranchId = await database.ProvisionAuthorizationAsync(BranchAccessScope.AllOrganizationBranches, secondBranch: true);
+        using WebApplicationFactory<Program> factory = CreateFactory(database.ConnectionString, new MutableClock(InitialTime), database.KeyPath);
+        using HttpClient client = CreateHttpsClient(factory);
+        (await LoginAsync(client, (await GetCsrfAsync(client)).Token, Password)).EnsureSuccessStatusCode();
+
+        using JsonDocument body = JsonDocument.Parse(await client.GetStringAsync("/api/v1/auth/me"));
+        JsonElement branchAccess = body.RootElement.GetProperty("branchAccess");
+        Assert.Equal("allOrganizationBranches", branchAccess.GetProperty("scope").GetString());
+        Assert.Equal(2, branchAccess.GetProperty("branchIds").GetArrayLength());
+        Assert.Equal(activeBranchId, Assert.Single(branchAccess.GetProperty("operationalBranchIds").EnumerateArray()).GetGuid());
+
+        await using (OrganizationDbContext organization = database.CreateOrganizationContext())
+        {
+            (await organization.Organizations.SingleAsync()).ChangeStatus(
+                OrganizationStatus.Suspended, InitialTime.AddMinutes(2));
+            await organization.SaveChangesAsync();
+        }
+
+        using JsonDocument inactiveOrganizationBody = JsonDocument.Parse(await client.GetStringAsync("/api/v1/auth/me"));
+        Assert.Empty(inactiveOrganizationBody.RootElement.GetProperty("branchAccess")
+            .GetProperty("operationalBranchIds").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task RemovingEveryPermission_TakesEffectNextRequestWithoutRevokingAuthenticationSession()
+    {
+        await using var database = await AuthDatabase.CreateAsync();
+        await database.MigrateAndSeedAsync();
+        await database.ProvisionAuthorizationAsync(BranchAccessScope.AssignedBranches, secondBranch: false);
+        using WebApplicationFactory<Program> factory = CreateFactory(database.ConnectionString, new MutableClock(InitialTime), database.KeyPath);
+        using HttpClient client = CreateHttpsClient(factory);
+        (await LoginAsync(client, (await GetCsrfAsync(client)).Token, Password)).EnsureSuccessStatusCode();
+
+        await database.RemoveEveryPermissionAsync();
+
+        using JsonDocument body = JsonDocument.Parse(await client.GetStringAsync("/api/v1/auth/me"));
+        Assert.True(body.RootElement.GetProperty("isAuthenticated").GetBoolean());
+        Assert.Empty(body.RootElement.GetProperty("permissions").EnumerateArray());
+        Assert.Equal(JsonValueKind.Null, body.RootElement.GetProperty("branchAccess").ValueKind);
+        await using var identity = database.CreateIdentityContext();
+        Assert.Null((await identity.UserSessions.SingleAsync()).RevokedAtUtc);
+        Assert.Equal(3, (await identity.Users.SingleAsync()).AuthorizationVersion);
+    }
+
     private static WebApplicationFactory<Program> CreateFactory(
         string connectionString,
         MutableClock clock,
@@ -394,12 +544,13 @@ public sealed class ManagementAuthenticationTests
         }
 
         public IdentityDbContext CreateIdentityContext() => new(new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(ConnectionString, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", "identity")).Options);
+        public OrganizationDbContext CreateOrganizationContext() => new(new DbContextOptionsBuilder<OrganizationDbContext>().UseNpgsql(ConnectionString, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", "organization")).Options);
         public AuditDbContext CreateAuditContext() => new(new DbContextOptionsBuilder<AuditDbContext>().UseNpgsql(ConnectionString, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", "audit")).Options);
 
         public async Task MigrateAndSeedAsync()
         {
             await using var platform = new KalmDbContext(new DbContextOptionsBuilder<KalmDbContext>().UseNpgsql(ConnectionString).Options);
-            await using var organization = new OrganizationDbContext(new DbContextOptionsBuilder<OrganizationDbContext>().UseNpgsql(ConnectionString, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", "organization")).Options);
+            await using var organization = CreateOrganizationContext();
             await using var identity = CreateIdentityContext();
             await using var audit = CreateAuditContext();
             await platform.Database.MigrateAsync();
@@ -417,6 +568,65 @@ public sealed class ManagementAuthenticationTests
             user.Activate(credential, InitialTime);
             identity.Users.Add(user);
             identity.PasswordCredentials.Add(credential);
+            await identity.SaveChangesAsync();
+        }
+
+        public async Task<Guid> ProvisionAuthorizationAsync(BranchAccessScope scope, bool secondBranch)
+        {
+            await using var identity = CreateIdentityContext();
+            await using var organization = CreateOrganizationContext();
+            User user = await identity.Users.SingleAsync();
+            OrganizationAggregate organizationAggregate = await organization.Organizations.SingleAsync();
+            organizationAggregate.ChangeStatus(OrganizationStatus.Active, InitialTime.AddMinutes(1));
+            var activeBranch = Branch.Create(
+                Guid.NewGuid(), organizationAggregate.Id, new OrganizationName("Cairo", 120), new BranchCode("CAI-01"),
+                new LocaleCode("en"), new TimeZoneId("Africa/Cairo"), BusinessDayRollover.Parse("04:00"), InitialTime);
+            activeBranch.ChangeStatus(BranchStatus.Active, InitialTime.AddMinutes(1));
+            organization.Branches.Add(activeBranch);
+            if (secondBranch)
+            {
+                var suspended = Branch.Create(
+                    Guid.NewGuid(), organizationAggregate.Id, new OrganizationName("Second", 120), new BranchCode("CAI-02"),
+                    new LocaleCode("en"), new TimeZoneId("Africa/Cairo"), BusinessDayRollover.Parse("04:00"), InitialTime);
+                suspended.ChangeStatus(BranchStatus.Suspended, InitialTime.AddMinutes(1));
+                organization.Branches.Add(suspended);
+            }
+
+            var role = Role.Create(Guid.NewGuid(), user.OrganizationId, new RoleName("Any display name"), null, InitialTime);
+            identity.Roles.Add(role);
+            Permission[] permissions = await identity.Permissions
+                .Where(permission => permission.Code == PermissionCodes.ManagementAccess || permission.Code == PermissionCodes.UsersView)
+                .ToArrayAsync();
+            foreach (Permission permission in permissions)
+            {
+                identity.RolePermissions.Add(RolePermission.Grant(Guid.NewGuid(), role.Id, permission.Id, InitialTime));
+            }
+
+            identity.UserRoleAssignments.Add(UserRoleAssignment.Assign(Guid.NewGuid(), user.OrganizationId, user.Id, role.Id, InitialTime));
+            user.AdvanceAuthorizationVersion(InitialTime.AddMinutes(1));
+            var access = UserBranchAccess.Create(Guid.NewGuid(), user.OrganizationId, user.Id, scope, InitialTime);
+            organization.UserBranchAccesses.Add(access);
+            if (scope == BranchAccessScope.AssignedBranches)
+            {
+                organization.UserBranchAssignments.Add(UserBranchAssignment.Assign(
+                    Guid.NewGuid(), access.Id, user.OrganizationId, activeBranch.Id, InitialTime));
+            }
+
+            await organization.SaveChangesAsync();
+            await identity.SaveChangesAsync();
+            return activeBranch.Id;
+        }
+
+        public async Task RemoveEveryPermissionAsync()
+        {
+            await using var identity = CreateIdentityContext();
+            DateTimeOffset now = InitialTime.AddMinutes(2);
+            foreach (RolePermission grant in await identity.RolePermissions.Where(candidate => candidate.RevokedAtUtc == null).ToArrayAsync())
+            {
+                grant.Revoke(now);
+            }
+
+            (await identity.Users.SingleAsync()).AdvanceAuthorizationVersion(now);
             await identity.SaveChangesAsync();
         }
 
