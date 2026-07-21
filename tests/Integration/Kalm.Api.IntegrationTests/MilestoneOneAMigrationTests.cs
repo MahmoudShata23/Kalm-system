@@ -286,9 +286,9 @@ public sealed class MilestoneOneAMigrationTests
             ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260720233502_ExtendAuthorizationAuditActions.cs"] = "da5e6bb391183eb4cb853aee04391f949bbdec3492a9b3f13e11dca9b83ffa3a",
             ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260720233502_ExtendAuthorizationAuditActions.Designer.cs"] = "20153d66c1e2525ce59381d881fd14b18d36e5fce45eed4aee6440d01771259d",
             ["src/Modules/Kalm.Identity.Infrastructure/Migrations/20260721220000_AddRoleAdministrationSafeguards.cs"] = "cf79e47374f91ac81ef1ee1a2347e52611cee5c77e6b10f31c95ad2b62540189",
-            ["src/Modules/Kalm.Identity.Infrastructure/Migrations/20260721220000_AddRoleAdministrationSafeguards.Designer.cs"] = "023ca6a131fd05a8167f73626b4fb84cdd131260acf427884d49fb48a3b60e54",
+            ["src/Modules/Kalm.Identity.Infrastructure/Migrations/20260721220000_AddRoleAdministrationSafeguards.Designer.cs"] = "7c6efc66a98f8d00fe91d545cdfbfe554ca9f2130750d23bf198c52040216936",
             ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260721220500_ExtendRoleAdministrationAuditActions.cs"] = "738e324b63940b65e8d17b838882e3335daaac96fc3eee19b0fc330486d18a80",
-            ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260721220500_ExtendRoleAdministrationAuditActions.Designer.cs"] = "612ece74537aeb010a7ea4595aaabbffcc107fd0a0adca331657a360b1807e84"
+            ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260721220500_ExtendRoleAdministrationAuditActions.Designer.cs"] = "34654bcf048e2968b15addaed7b1cefa6caaebe7717dd5c6ba7f5b88c643bd37"
         };
         string root = FindRepositoryRoot();
         foreach ((string relativePath, string expectedHash) in expected)
