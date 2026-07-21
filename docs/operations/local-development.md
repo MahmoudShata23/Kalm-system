@@ -36,6 +36,7 @@ On Windows, `Test-NetConnection 127.0.0.1 -Port 54329` verifies the host port af
 The design-time EF connection defaults only to the local Docker database. Set `KALM_DATABASE_CONNECTION_STRING` when an explicitly different design-time target is required. Runtime configuration continues to use `Database__ConnectionString` or another standard .NET configuration provider. Apply and validate all Platform, Organization, Identity, and Audit migrations with `deploy\scripts\validate-migrations.cmd`.
 
 Management authentication configuration and the initial-user Bootstrap CLI are documented in `docs/operations/management-authentication.md`.
+That guide also documents the explicit existing-Slice-2 `provision-first-administrator` upgrade command.
 
 ## Frontend
 

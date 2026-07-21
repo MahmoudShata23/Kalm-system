@@ -12,6 +12,13 @@ export interface CurrentUser {
   absoluteExpiresAtUtc: string | null;
   reauthenticationValidUntilUtc: string | null;
   permissions: string[];
+  branchAccess: BranchAccess | null;
+}
+
+export interface BranchAccess {
+  scope: "assignedBranches" | "allOrganizationBranches";
+  branchIds: string[];
+  operationalBranchIds: string[];
 }
 
 export interface CsrfTokenResponse {

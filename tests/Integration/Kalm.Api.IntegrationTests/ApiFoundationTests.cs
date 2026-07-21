@@ -70,6 +70,11 @@ public sealed class ApiFoundationTests : IClassFixture<WebApplicationFactory<Pro
     [Theory]
     [InlineData("/api/v1/organization")]
     [InlineData("/api/v1/branches")]
+    [InlineData("/api/v1/users")]
+    [InlineData("/api/v1/roles")]
+    [InlineData("/api/v1/permissions")]
+    [InlineData("/api/v1/auth/provision-first-administrator")]
+    [InlineData("/api/v1/auth/diagnostic")]
     public async Task SliceOne_DoesNotExposeOrganizationAdministrationRoutes(string path)
     {
         using var client = _factory.CreateClient();

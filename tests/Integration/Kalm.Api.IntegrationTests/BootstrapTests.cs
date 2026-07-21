@@ -3,10 +3,12 @@ using Kalm.Api.Persistence;
 using Kalm.Bootstrap;
 using Kalm.Audit.Domain;
 using Kalm.Audit.Infrastructure.Persistence;
+using Kalm.Identity.Authorization;
 using Kalm.Identity.Domain;
 using Kalm.Identity.Infrastructure.Persistence;
 using Kalm.Identity.Infrastructure.Security;
 using Kalm.Organization.Infrastructure.Persistence;
+using Kalm.Organization.Domain;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -35,12 +37,55 @@ public sealed class BootstrapTests
         Assert.Equal(1, await identity.Users.CountAsync());
         Assert.Equal(UserStatus.Active, (await identity.Users.SingleAsync()).Status);
         Assert.Equal(PasswordCredentialStatus.Active, (await identity.PasswordCredentials.SingleAsync()).Status);
+        Assert.Equal(1, await identity.Roles.CountAsync());
+        Assert.Equal(58, await identity.RolePermissions.CountAsync());
+        Assert.Equal(1, await identity.UserRoleAssignments.CountAsync());
+        Assert.Equal(2, (await identity.Users.SingleAsync()).AuthorizationVersion);
+        Assert.Equal(
+            PermissionCatalogue.FirstAdministratorPermissionCodes,
+            await (from grant in identity.RolePermissions
+                   join permission in identity.Permissions on grant.PermissionId equals permission.Id
+                   orderby permission.Code
+                   select permission.Code).ToArrayAsync());
         await using var organization = database.CreateOrganization();
         Assert.Equal(1, await organization.Organizations.CountAsync());
         Assert.Equal(1, await organization.Branches.CountAsync());
+        Assert.Equal(1, await organization.UserBranchAccesses.CountAsync());
+        Assert.Equal(1, await organization.UserBranchAssignments.CountAsync());
+        Assert.Equal(BranchAccessScope.AssignedBranches, (await organization.UserBranchAccesses.SingleAsync()).Scope);
         await using var audit = database.CreateAudit();
         AuditAction[] actions = await audit.AuditEntries.OrderBy(entry => entry.Action).Select(entry => entry.Action).ToArrayAsync();
-        Assert.Equal([AuditAction.OperationalBootstrapCompleted, AuditAction.PasswordCredentialActivated], actions.OrderBy(action => action).ToArray());
+        AuditAction[] expectedActions =
+        [
+            AuditAction.AuthorizationProvisioningCompleted,
+            AuditAction.OperationalBootstrapCompleted,
+            AuditAction.PasswordCredentialActivated,
+            AuditAction.RolePermissionSetChanged,
+            AuditAction.SystemRoleProvisioned,
+            AuditAction.UserBranchAccessChanged,
+            AuditAction.UserRoleAssigned
+        ];
+        Assert.Equal(expectedActions.OrderBy(action => action), actions.OrderBy(action => action));
+    }
+
+    [Fact]
+    public async Task CleanBootstrap_UsesAllOrganizationBranchesOnlyWhenExplicitlySelected()
+    {
+        await using var database = await BootstrapDatabase.CreateAsync();
+        await database.MigrateAsync();
+        using var environment = new BootstrapEnvironment(database.ConnectionString);
+        BootstrapArguments args = BootstrapArguments.Parse([
+            "--username", "manager", "--display-name", "Management User", "--preferred-language", "en",
+            "--organization-name", "Kalm", "--branch-name", "Cairo", "--branch-code", "CAI-01",
+            "--currency", "EGP", "--locale", "en", "--time-zone", "Africa/Cairo", "--rollover", "04:00",
+            "--password-stdin", "--all-organization-branches"
+        ]);
+
+        Assert.Equal(0, await BootstrapProgram.ExecuteAsync(args, Password, CancellationToken.None));
+
+        await using var organization = database.CreateOrganization();
+        Assert.Equal(BranchAccessScope.AllOrganizationBranches, (await organization.UserBranchAccesses.SingleAsync()).Scope);
+        Assert.Empty(await organization.UserBranchAssignments.ToListAsync());
     }
 
     [Fact]
@@ -143,6 +188,167 @@ public sealed class BootstrapTests
         Assert.Contains("KALM_FINGERPRINT_KEY_BASE64 is required", result.StandardError, StringComparison.Ordinal);
         Assert.DoesNotContain(Password, result.StandardOutput, StringComparison.Ordinal);
         Assert.DoesNotContain(Password, result.StandardError, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExistingUserProvisioning_IsConcurrentIdempotentAndConflictingScopeFailsClosed()
+    {
+        await using var database = await BootstrapDatabase.CreateAsync();
+        await database.MigrateAsync();
+        await database.SeedExistingUserAsync();
+        using var environment = new BootstrapEnvironment(database.ConnectionString);
+        string[] assigned = [
+            "provision-first-administrator", "--username", "manager", "--branch-code", "CAI-01"
+        ];
+
+        Task<int> first = BootstrapProgram.RunAsync(assigned);
+        Task<int> second = BootstrapProgram.RunAsync(assigned);
+        int[] results = await Task.WhenAll(first, second);
+
+        Assert.All(results, result => Assert.Equal(0, result));
+        await using (var identity = database.CreateIdentity())
+        {
+            Assert.Equal(1, await identity.Roles.CountAsync());
+            Assert.Equal(58, await identity.RolePermissions.CountAsync());
+            Assert.Equal(1, await identity.UserRoleAssignments.CountAsync());
+            Assert.Equal(2, (await identity.Users.SingleAsync()).AuthorizationVersion);
+        }
+
+        await using (var organization = database.CreateOrganization())
+        {
+            Assert.Equal(1, await organization.UserBranchAccesses.CountAsync());
+            Assert.Equal(1, await organization.UserBranchAssignments.CountAsync());
+        }
+
+        int conflict = await BootstrapProgram.RunAsync([
+            "provision-first-administrator", "--username", "manager", "--all-organization-branches"
+        ]);
+        Assert.Equal(6, conflict);
+
+        await using (var identity = database.CreateIdentity())
+        {
+            User manager = await identity.Users.SingleAsync();
+            var hasher = new Pbkdf2PasswordHasher(Microsoft.Extensions.Options.Options.Create(
+                new PasswordHashingOptions { Iterations = PasswordHashingOptions.MinimumIterations }));
+            var other = User.Create(
+                Guid.NewGuid(), manager.OrganizationId,
+                new Kalm.Identity.Domain.ValueObjects.Username("other-manager"), null,
+                new Kalm.Identity.Domain.ValueObjects.DisplayName("Other Manager"), "en",
+                new DateTimeOffset(2026, 7, 21, 1, 0, 0, TimeSpan.Zero));
+            var credential = PasswordCredential.Create(
+                Guid.NewGuid(), other.Id, new DateTimeOffset(2026, 7, 21, 1, 0, 0, TimeSpan.Zero));
+            credential.CompleteSetup(
+                hasher.Hash(Password), new DateTimeOffset(2026, 7, 21, 1, 0, 0, TimeSpan.Zero));
+            other.Activate(credential, new DateTimeOffset(2026, 7, 21, 1, 0, 0, TimeSpan.Zero));
+            identity.Users.Add(other);
+            identity.PasswordCredentials.Add(credential);
+            await identity.SaveChangesAsync();
+        }
+
+        int targetConflict = await BootstrapProgram.RunAsync([
+            "provision-first-administrator", "--username", "other-manager", "--branch-code", "CAI-01"
+        ]);
+        Assert.Equal(6, targetConflict);
+        await using var audit = database.CreateAudit();
+        Assert.Contains(
+            await audit.AuditEntries.Select(entry => entry.Action).ToArrayAsync(),
+            action => action == AuditAction.AuthorizationProvisioningFailed);
+    }
+
+    [Fact]
+    public async Task ExistingUserProvisioning_AllOrganizationBranchesIsExplicitAndIdempotent()
+    {
+        await using var database = await BootstrapDatabase.CreateAsync();
+        await database.MigrateAsync();
+        await database.SeedExistingUserAsync();
+        using var environment = new BootstrapEnvironment(database.ConnectionString);
+        string[] arguments = [
+            "provision-first-administrator", "--username", "manager", "--all-organization-branches"
+        ];
+
+        Assert.Equal(0, await BootstrapProgram.RunAsync(arguments));
+        Assert.Equal(0, await BootstrapProgram.RunAsync(arguments));
+
+        await using var identity = database.CreateIdentity();
+        Assert.Equal(1, await identity.Roles.CountAsync());
+        Assert.Equal(58, await identity.RolePermissions.CountAsync());
+        Assert.Equal(1, await identity.UserRoleAssignments.CountAsync());
+        Assert.Equal(2, (await identity.Users.SingleAsync()).AuthorizationVersion);
+        Assert.Equal(
+            PermissionCatalogue.FirstAdministratorPermissionCodes,
+            await (from grant in identity.RolePermissions
+                   join permission in identity.Permissions on grant.PermissionId equals permission.Id
+                   orderby permission.Code
+                   select permission.Code).ToArrayAsync());
+        await using var organization = database.CreateOrganization();
+        Assert.Equal(BranchAccessScope.AllOrganizationBranches, (await organization.UserBranchAccesses.SingleAsync()).Scope);
+        Assert.Empty(await organization.UserBranchAssignments.ToListAsync());
+    }
+
+    [Theory]
+    [InlineData("identity")]
+    [InlineData("organization")]
+    [InlineData("audit")]
+    public async Task ExistingUserProvisioning_ModuleFailureRollsBackEveryContextAndAuthorizationVersion(string failingModule)
+    {
+        await using var database = await BootstrapDatabase.CreateAsync();
+        await database.MigrateAsync();
+        await database.SeedExistingUserAsync();
+        string triggerSql = failingModule switch
+        {
+            "identity" => "create function identity.reject_authorization_test() returns trigger language plpgsql as $$ begin raise exception 'forced'; end; $$; create trigger trg_reject_authorization_test before insert on identity.roles for each row execute function identity.reject_authorization_test();",
+            "organization" => "create function organization.reject_authorization_test() returns trigger language plpgsql as $$ begin raise exception 'forced'; end; $$; create trigger trg_reject_authorization_test before insert on organization.user_branch_access for each row execute function organization.reject_authorization_test();",
+            _ => "create function audit.reject_authorization_test() returns trigger language plpgsql as $$ begin raise exception 'forced'; end; $$; create trigger trg_reject_authorization_test before insert on audit.audit_logs for each row execute function audit.reject_authorization_test();"
+        };
+        await database.ExecuteAsync(triggerSql);
+        using var environment = new BootstrapEnvironment(database.ConnectionString);
+
+        int result = await BootstrapProgram.RunAsync([
+            "provision-first-administrator", "--username", "manager", "--branch-code", "CAI-01"
+        ]);
+
+        Assert.Equal(1, result);
+        await using var identity = database.CreateIdentity();
+        Assert.Equal(1, (await identity.Users.SingleAsync()).AuthorizationVersion);
+        Assert.Empty(await identity.Roles.ToListAsync());
+        Assert.Empty(await identity.RolePermissions.ToListAsync());
+        Assert.Empty(await identity.UserRoleAssignments.ToListAsync());
+        await using var organization = database.CreateOrganization();
+        Assert.Empty(await organization.UserBranchAccesses.ToListAsync());
+        Assert.Empty(await organization.UserBranchAssignments.ToListAsync());
+        await using var audit = database.CreateAudit();
+        Assert.Empty(await audit.AuditEntries.ToListAsync());
+    }
+
+    [Fact]
+    public async Task ProvisioningConflictReportsFailureAuditOnlyAfterRollbackAndSurfacesAuditFailure()
+    {
+        await using var database = await BootstrapDatabase.CreateAsync();
+        await database.MigrateAsync();
+        await database.SeedExistingUserAsync();
+        using var environment = new BootstrapEnvironment(database.ConnectionString);
+        Assert.Equal(0, await BootstrapProgram.RunAsync([
+            "provision-first-administrator", "--username", "manager", "--branch-code", "CAI-01"
+        ]));
+        await database.ExecuteAsync(
+            "create function audit.reject_failed_authorization_test() returns trigger language plpgsql as $$ begin if new.action = 'AuthorizationProvisioningFailed' then raise exception 'forced'; end if; return new; end; $$; create trigger trg_reject_failed_authorization_test before insert on audit.audit_logs for each row execute function audit.reject_failed_authorization_test();");
+
+        int result = await BootstrapProgram.RunAsync([
+            "provision-first-administrator", "--username", "manager", "--all-organization-branches"
+        ]);
+
+        Assert.Equal(1, result);
+        await using var identity = database.CreateIdentity();
+        Assert.Equal(2, (await identity.Users.SingleAsync()).AuthorizationVersion);
+        Assert.Equal(1, await identity.Roles.CountAsync());
+        Assert.Equal(58, await identity.RolePermissions.CountAsync());
+        await using var organization = database.CreateOrganization();
+        Assert.Equal(BranchAccessScope.AssignedBranches, (await organization.UserBranchAccesses.SingleAsync()).Scope);
+        Assert.Equal(1, await organization.UserBranchAssignments.CountAsync());
+        await using var audit = database.CreateAudit();
+        Assert.DoesNotContain(
+            await audit.AuditEntries.Select(entry => entry.Action).ToArrayAsync(),
+            action => action == AuditAction.AuthorizationProvisioningFailed);
     }
 
     private static BootstrapArguments CreateArguments() => BootstrapArguments.Parse([
@@ -292,6 +498,38 @@ public sealed class BootstrapTests
             await organization.Database.MigrateAsync();
             await identity.Database.MigrateAsync();
             await audit.Database.MigrateAsync();
+        }
+
+        public async Task SeedExistingUserAsync()
+        {
+            DateTimeOffset now = new(2026, 7, 21, 0, 0, 0, TimeSpan.Zero);
+            await using var organization = CreateOrganization();
+            var organizationAggregate = Kalm.Organization.Domain.Organization.Create(
+                Guid.NewGuid(), new Kalm.Organization.Domain.ValueObjects.OrganizationName("Kalm", 120), null,
+                new Kalm.Organization.Domain.ValueObjects.CurrencyCode("EGP"),
+                new Kalm.Organization.Domain.ValueObjects.LocaleCode("en"), now);
+            organization.Organizations.Add(organizationAggregate);
+            organization.Branches.Add(Kalm.Organization.Domain.Branch.Create(
+                Guid.NewGuid(), organizationAggregate.Id,
+                new Kalm.Organization.Domain.ValueObjects.OrganizationName("Cairo", 120),
+                new Kalm.Organization.Domain.ValueObjects.BranchCode("CAI-01"),
+                new Kalm.Organization.Domain.ValueObjects.LocaleCode("en"),
+                new Kalm.Organization.Domain.ValueObjects.TimeZoneId("Africa/Cairo"),
+                Kalm.Organization.Domain.ValueObjects.BusinessDayRollover.Parse("04:00"), now));
+            await organization.SaveChangesAsync();
+
+            await using var identity = CreateIdentity();
+            var hasher = new Pbkdf2PasswordHasher(Microsoft.Extensions.Options.Options.Create(
+                new PasswordHashingOptions { Iterations = PasswordHashingOptions.MinimumIterations }));
+            var user = User.Create(
+                Guid.NewGuid(), organizationAggregate.Id, new Kalm.Identity.Domain.ValueObjects.Username("manager"), null,
+                new Kalm.Identity.Domain.ValueObjects.DisplayName("Management User"), "en", now);
+            var credential = PasswordCredential.Create(Guid.NewGuid(), user.Id, now);
+            credential.CompleteSetup(hasher.Hash(Password), now);
+            user.Activate(credential, now);
+            identity.Users.Add(user);
+            identity.PasswordCredentials.Add(credential);
+            await identity.SaveChangesAsync();
         }
 
         public async Task ExecuteAsync(string sql)

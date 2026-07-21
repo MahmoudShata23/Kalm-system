@@ -1,0 +1,13 @@
+:host { display: block; }
+.management { display: grid; gap: 24px; }
+.management-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.eyebrow { margin: 0 0 8px; color: var(--kalm-coffee); font-size: 0.84rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+h1, h2 { margin: 0; color: var(--kalm-charcoal); }
+.scope, .empty-state { padding: clamp(24px, 4vw, 36px); border: 1px solid var(--kalm-warm-beige-deep); border-radius: var(--kalm-radius-large); background: var(--kalm-surface-raised); }
+.scope { display: grid; gap: 8px; }
+.scope p { margin: 0; color: var(--kalm-coffee); }
+.empty-state { text-align: center; }
+.empty-state .pi { margin-bottom: 14px; color: var(--kalm-coffee); font-size: 2rem; }
+.empty-state p { margin: 12px 0 0; color: var(--kalm-coffee); line-height: 1.6; }
+:host-context([dir="rtl"]) .eyebrow { letter-spacing: 0; }
+@media (max-width: 600px) { .management-header { align-items: stretch; flex-direction: column; } }

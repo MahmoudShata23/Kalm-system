@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Kalm.Api.Configuration;
+using Kalm.Api.Features.Authorization;
 using Kalm.Api.Transactions;
 using Kalm.Identity.Application.ManagementAuthentication;
 using Kalm.Identity;
@@ -39,6 +40,7 @@ public static class AuthenticationEndpoints
         HttpContext context,
         IAntiforgery antiforgery,
         ManagementAuthenticationAuditTransactionCoordinator coordinator,
+        EffectiveAuthorizationResolver authorizationResolver,
         IOptions<ManagementAuthenticationOptions> options,
         CancellationToken cancellationToken)
     {
@@ -73,6 +75,10 @@ public static class AuthenticationEndpoints
                 return Problem(StatusCodes.Status401Unauthorized, "auth.invalid_credentials", "The identifier or password is invalid, or the account is unavailable.");
             }
 
+            EffectiveAuthorizationSnapshot authorization = await authorizationResolver.ResolveAsync(
+                result.Session.UserId, result.Session.OrganizationId, cancellationToken);
+            ManagementSessionSnapshot session = result.Session with { Authorization = authorization };
+
             var identity = new ClaimsIdentity(ManagementAuthenticationConstants.Scheme);
             identity.AddClaim(new Claim(ManagementAuthenticationConstants.SessionIdClaim, result.SessionId.ToString("N")));
             identity.AddClaim(new Claim(ManagementAuthenticationConstants.SchemeVersionClaim, ManagementAuthenticationConstants.SchemeVersion));
@@ -83,10 +89,10 @@ public static class AuthenticationEndpoints
                 {
                     AllowRefresh = false,
                     IsPersistent = false,
-                    ExpiresUtc = result.Session.AbsoluteExpiresAtUtc
+                    ExpiresUtc = session.AbsoluteExpiresAtUtc
                 });
 
-            return Results.Ok(ToResponse(result.Session, options.Value));
+            return Results.Ok(ToResponse(session, options.Value));
         }
         finally
         {
@@ -128,7 +134,7 @@ public static class AuthenticationEndpoints
     {
         ManagementSessionSnapshot? session = CurrentSession(context);
         return session is null
-            ? Results.Ok(new CurrentUserResponse(false, null, null, null, null, null, null, []))
+            ? Results.Ok(new CurrentUserResponse(false, null, null, null, null, null, null, [], null))
             : Results.Ok(ToResponse(session, options.Value));
     }
 
@@ -138,10 +144,20 @@ public static class AuthenticationEndpoints
             : null;
 
     private static CurrentUserResponse ToResponse(ManagementSessionSnapshot session, ManagementAuthenticationOptions options)
-        => new(
+    {
+        EffectiveBranchAccessSnapshot? branch = session.Authorization.BranchAccess;
+        return new CurrentUserResponse(
             true, session.Username, session.DisplayName, session.PreferredLanguage,
             session.InactivityExpiresAtUtc, session.AbsoluteExpiresAtUtc,
-            session.LastReauthenticatedAtUtc.AddMinutes(options.ReauthenticationMinutes), []);
+            session.LastReauthenticatedAtUtc.AddMinutes(options.ReauthenticationMinutes),
+            session.Authorization.Permissions.OrderBy(code => code, StringComparer.Ordinal).ToArray(),
+            branch is null
+                ? null
+                : new BranchAccessResponse(
+                    branch.Scope,
+                    branch.BranchIds.OrderBy(id => id).ToArray(),
+                    branch.OperationalBranchIds.OrderBy(id => id).ToArray()));
+    }
 
     private static async Task<IResult?> ValidateCsrfAsync(HttpContext context, IAntiforgery antiforgery)
     {

@@ -3,6 +3,7 @@ import { Injectable, inject, signal } from "@angular/core";
 import { firstValueFrom } from "rxjs";
 import { CsrfTokenStore } from "./csrf-token.store";
 import { CsrfTokenResponse, CurrentUser, LoginRequest } from "./auth.models";
+import { LanguageService } from "../i18n/language.service";
 
 const ANONYMOUS: CurrentUser = {
   isAuthenticated: false,
@@ -12,20 +13,32 @@ const ANONYMOUS: CurrentUser = {
   inactivityExpiresAtUtc: null,
   absoluteExpiresAtUtc: null,
   reauthenticationValidUntilUtc: null,
-  permissions: []
+  permissions: [],
+  branchAccess: null
 };
 
 @Injectable({ providedIn: "root" })
 export class ManagementAuthService {
   private readonly http = inject(HttpClient);
   private readonly csrf = inject(CsrfTokenStore);
+  private readonly language = inject(LanguageService);
   private readonly userState = signal<CurrentUser>(ANONYMOUS);
+  private readonly initializedState = signal(false);
   private refreshPromise: Promise<void> | null = null;
+  private initializePromise: Promise<void> | null = null;
 
   readonly user = this.userState.asReadonly();
+  readonly initialized = this.initializedState.asReadonly();
 
   async initialize(): Promise<void> {
-    await Promise.all([this.refreshCsrf(), this.refreshCurrentUser()]);
+    await this.ensureInitialized();
+  }
+
+  ensureInitialized(): Promise<void> {
+    this.initializePromise ??= Promise.all([this.refreshCsrf().catch(() => undefined), this.refreshCurrentUser()])
+      .then(() => undefined)
+      .finally(() => this.initializedState.set(true));
+    return this.initializePromise;
   }
 
   async login(request: LoginRequest): Promise<void> {
@@ -34,7 +47,7 @@ export class ManagementAuthService {
     }
 
     const user = await firstValueFrom(this.http.post<CurrentUser>("/api/v1/auth/login", request));
-    this.userState.set(user);
+    this.setUser(user);
     await this.refreshCsrf();
   }
 
@@ -47,9 +60,20 @@ export class ManagementAuthService {
 
   async refreshCurrentUser(): Promise<void> {
     try {
-      this.userState.set(await firstValueFrom(this.http.get<CurrentUser>("/api/v1/auth/me")));
+      this.setUser(await firstValueFrom(this.http.get<CurrentUser>("/api/v1/auth/me")));
     } catch {
       this.userState.set(ANONYMOUS);
+    }
+  }
+
+  hasPermission(permission: string): boolean {
+    return this.userState().permissions.includes(permission);
+  }
+
+  private setUser(user: CurrentUser): void {
+    this.userState.set({ ...user, permissions: [...user.permissions].sort() });
+    if (user.preferredLanguage) {
+      this.language.setLanguage(user.preferredLanguage);
     }
   }
 

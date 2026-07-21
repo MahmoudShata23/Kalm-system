@@ -187,6 +187,33 @@
   },
   "components": {
     "schemas": {
+      "BranchAccessResponse": {
+        "required": [
+          "scope",
+          "branchIds",
+          "operationalBranchIds"
+        ],
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string"
+          },
+          "branchIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "operationalBranchIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
       "CsrfTokenResponse": {
         "required": [
           "requestToken"
@@ -207,7 +234,8 @@
           "inactivityExpiresAtUtc",
           "absoluteExpiresAtUtc",
           "reauthenticationValidUntilUtc",
-          "permissions"
+          "permissions",
+          "branchAccess"
         ],
         "type": "object",
         "properties": {
@@ -258,6 +286,16 @@
             "items": {
               "type": "string"
             }
+          },
+          "branchAccess": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BranchAccessResponse"
+              }
+            ]
           }
         }
       },

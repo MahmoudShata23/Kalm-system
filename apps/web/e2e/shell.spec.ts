@@ -36,6 +36,77 @@ test("management login uses a generic failure and clears the password", async ({
   await expect(identifier).toBeFocused();
 });
 
+test("anonymous management navigation redirects to login without flicker", async ({ page }) => {
+  await page.route("**/api/v1/auth/csrf", route => route.fulfill({ json: { requestToken: "e2e-csrf" } }));
+  await page.route("**/api/v1/auth/me", route => route.fulfill({ json: { isAuthenticated: false, permissions: [], branchAccess: null } }));
+
+  await page.goto("/management");
+
+  await expect(page).toHaveURL(/\/management\/login/);
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Access denied|Management foundation/ })).toHaveCount(0);
+});
+
+test("authenticated user without management access remains signed in and sees localized access denied", async ({ page }) => {
+  await page.route("**/api/v1/auth/csrf", route => route.fulfill({ json: { requestToken: "e2e-csrf" } }));
+  await page.route("**/api/v1/auth/me", route => route.fulfill({ json: {
+    isAuthenticated: true,
+    username: "manager",
+    displayName: "Management User",
+    preferredLanguage: "en",
+    permissions: [],
+    branchAccess: null
+  } }));
+
+  await page.goto("/management");
+
+  await expect(page).toHaveURL(/\/management\/access-denied/);
+  await expect(page.getByRole("heading", { name: "Access denied" })).toBeVisible();
+  await page.getByRole("button", { name: /AR/ }).click();
+  await expect(page.locator(".shell")).toHaveAttribute("dir", "rtl");
+  await expect(page.getByRole("heading", { name: "غير مصرح بالدخول" })).toBeVisible();
+});
+
+test("authorized user enters the management shell with explicit branch scope", async ({ page }) => {
+  await page.route("**/api/v1/auth/csrf", route => route.fulfill({ json: { requestToken: "e2e-csrf" } }));
+  await page.route("**/api/v1/auth/me", route => route.fulfill({ json: {
+    isAuthenticated: true,
+    username: "manager",
+    displayName: "Management User",
+    preferredLanguage: "en",
+    permissions: ["management.access"],
+    branchAccess: { scope: "assignedBranches", branchIds: ["branch-1"], operationalBranchIds: [] }
+  } }));
+
+  await page.goto("/management");
+
+  await expect(page.getByRole("heading", { name: "Welcome, Management User" })).toBeVisible();
+  await expect(page.getByText("Assigned branches", { exact: true })).toBeVisible();
+  await expect(page.getByText("Branches in scope: 1")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Management foundation ready" })).toBeVisible();
+});
+
+test("successful login routes an authenticated unprovisioned user to access denied", async ({ page }) => {
+  await page.route("**/api/v1/auth/csrf", route => route.fulfill({ json: { requestToken: "e2e-csrf" } }));
+  await page.route("**/api/v1/auth/me", route => route.fulfill({ json: { isAuthenticated: false, permissions: [], branchAccess: null } }));
+  await page.route("**/api/v1/auth/login", route => route.fulfill({ json: {
+    isAuthenticated: true,
+    username: "manager",
+    displayName: "Management User",
+    preferredLanguage: "en",
+    permissions: [],
+    branchAccess: null
+  } }));
+  await page.goto("/management/login");
+  await page.getByLabel("Username or email").fill("manager");
+  await page.getByLabel("Password", { exact: true }).fill("a secure management phrase");
+
+  await page.getByRole("button", { name: "Sign in" }).click();
+
+  await expect(page).toHaveURL(/\/management\/access-denied/);
+  await expect(page.getByRole("heading", { name: "Access denied" })).toBeVisible();
+});
+
 test.describe("PrimeNG test-only accessibility fixture", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/__e2e/primeng-accessibility");

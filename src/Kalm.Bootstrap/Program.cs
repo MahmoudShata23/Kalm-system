@@ -29,10 +29,11 @@ internal static class BootstrapProgram
     private const int AlreadyInitialized = 3;
     private const int MigrationsMissing = 4;
     private const int ConfigurationInvalid = 5;
+    private const int AuthorizationConflict = 6;
 
     public static async Task<int> RunAsync(string[] args)
     {
-        if (args.Length == 0 || !string.Equals(args[0], "bootstrap-management", StringComparison.Ordinal))
+        if (args.Length == 0)
         {
             WriteUsage();
             return InvalidUsage;
@@ -40,6 +41,17 @@ internal static class BootstrapProgram
 
         try
         {
+            if (string.Equals(args[0], "provision-first-administrator", StringComparison.Ordinal))
+            {
+                return await RunAuthorizationProvisioningAsync(args[1..], CancellationToken.None);
+            }
+
+            if (!string.Equals(args[0], "bootstrap-management", StringComparison.Ordinal))
+            {
+                WriteUsage();
+                return InvalidUsage;
+            }
+
             BootstrapArguments parsed = BootstrapArguments.Parse(args[1..]);
             char[] passwordBuffer = parsed.PasswordFromStandardInput ? ReadPasswordFromStandardInput() : ReadPasswordInteractively();
             try
@@ -61,6 +73,11 @@ internal static class BootstrapProgram
         {
             Console.Error.WriteLine("Bootstrap refused: required database migrations have not been applied. No changes were made.");
             return MigrationsMissing;
+        }
+        catch (AuthorizationProvisioningConflictException exception)
+        {
+            Console.Error.WriteLine($"Authorization provisioning refused: {exception.ReasonCode}. No authorization changes were made.");
+            return AuthorizationConflict;
         }
         catch (ArgumentException exception)
         {
@@ -134,12 +151,15 @@ internal static class BootstrapProgram
                 organization.Organizations.Add(organizationAggregate);
             }
 
-            if (!await organization.Branches.AnyAsync(cancellationToken))
+            Branch? initialBranch = await organization.Branches
+                .SingleOrDefaultAsync(branch => branch.OrganizationId == organizationAggregate.Id && branch.Code == new BranchCode(args.BranchCode).Value, cancellationToken);
+            if (initialBranch is null)
             {
-                organization.Branches.Add(Branch.Create(
+                initialBranch = Branch.Create(
                     Guid.NewGuid(), organizationAggregate.Id, new OrganizationName(args.BranchName, 120),
                     new BranchCode(args.BranchCode), new LocaleCode(args.Locale), new TimeZoneId(args.TimeZone),
-                    BusinessDayRollover.Parse(args.Rollover), now));
+                    BusinessDayRollover.Parse(args.Rollover), now);
+                organization.Branches.Add(initialBranch);
             }
 
             Guid userId = Guid.NewGuid();
@@ -154,6 +174,17 @@ internal static class BootstrapProgram
             identity.PasswordCredentials.Add(credential);
 
             var auditWriter = new AuditWriter(audit);
+            await AuthorizationProvisioningCommand.ProvisionAsync(
+                identity,
+                organization,
+                auditWriter,
+                user,
+                credential,
+                args.AllOrganizationBranches ? BranchAccessScope.AllOrganizationBranches : BranchAccessScope.AssignedBranches,
+                args.AllOrganizationBranches ? [] : [initialBranch.Id],
+                now,
+                Guid.NewGuid().ToString("N"),
+                cancellationToken);
             await auditWriter.AppendAsync(new AuditWriteRequest(
                 Guid.NewGuid(), now, organizationAggregate.Id, null, null, userId, AuditActorType.System, null,
                 AuditAction.PasswordCredentialActivated, "User", userId, AuditResult.Succeeded, null,
@@ -188,6 +219,80 @@ internal static class BootstrapProgram
             || (await audit.Database.GetPendingMigrationsAsync(cancellationToken)).Any())
         {
             throw new PendingMigrationException();
+        }
+    }
+
+    private static async Task<int> RunAuthorizationProvisioningAsync(string[] args, CancellationToken cancellationToken)
+    {
+        AuthorizationProvisioningArguments parsed = AuthorizationProvisioningArguments.Parse(args);
+        string connectionString = RequiredEnvironment("KALM_DATABASE_CONNECTION_STRING");
+        string correlationId = Guid.NewGuid().ToString("N");
+        try
+        {
+            await using var connection = new NpgsqlConnection(connectionString);
+            await connection.OpenAsync(cancellationToken);
+            var organizationOptions = new DbContextOptionsBuilder<OrganizationDbContext>()
+                .UseNpgsql(connection, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", "organization")).Options;
+            var identityOptions = new DbContextOptionsBuilder<IdentityDbContext>()
+                .UseNpgsql(connection, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", "identity")).Options;
+            var auditOptions = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseNpgsql(connection, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", "audit")).Options;
+            await using var organization = new OrganizationDbContext(organizationOptions);
+            await using var identity = new IdentityDbContext(identityOptions);
+            await using var audit = new AuditDbContext(auditOptions);
+            await EnsureNoPendingMigrationsAsync(organization, identity, audit, cancellationToken);
+
+            await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+            await organization.Database.UseTransactionAsync(transaction, cancellationToken);
+            await identity.Database.UseTransactionAsync(transaction, cancellationToken);
+            await audit.Database.UseTransactionAsync(transaction, cancellationToken);
+            try
+            {
+                string normalizedUsername = new Username(parsed.Username).NormalizedValue;
+                User? user = await identity.Users.SingleOrDefaultAsync(candidate => candidate.NormalizedUsername == normalizedUsername, cancellationToken);
+                PasswordCredential? credential = user is null
+                    ? null
+                    : await identity.PasswordCredentials.SingleOrDefaultAsync(candidate => candidate.UserId == user.Id, cancellationToken);
+                if (user is null || credential is null)
+                {
+                    throw new AuthorizationProvisioningConflictException("target_not_found");
+                }
+
+                Guid[] branchIds = [];
+                if (parsed.Scope == BranchAccessScope.AssignedBranches)
+                {
+                    branchIds = await organization.Branches
+                        .Where(branch => branch.OrganizationId == user.OrganizationId && parsed.BranchCodes.Contains(branch.Code))
+                        .Select(branch => branch.Id)
+                        .OrderBy(id => id)
+                        .ToArrayAsync(cancellationToken);
+                    if (branchIds.Length != parsed.BranchCodes.Count)
+                    {
+                        throw new AuthorizationProvisioningConflictException("branch_not_found");
+                    }
+                }
+
+                await AuthorizationProvisioningCommand.ProvisionAsync(
+                    identity, organization, new AuditWriter(audit), user, credential,
+                    parsed.Scope, branchIds, DateTimeOffset.UtcNow, correlationId, cancellationToken);
+                await organization.SaveChangesAsync(cancellationToken);
+                await identity.SaveChangesAsync(cancellationToken);
+                await audit.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                Console.WriteLine("First-administrator authorization provisioned successfully.");
+                return Success;
+            }
+            catch
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+                throw;
+            }
+        }
+        catch (AuthorizationProvisioningConflictException exception)
+        {
+            await AuthorizationProvisioningCommand.WriteFailureAuditAsync(
+                connectionString, exception.ReasonCode, correlationId, cancellationToken);
+            throw;
         }
     }
 
@@ -248,7 +353,7 @@ internal static class BootstrapProgram
 
     private static void WriteUsage()
         => Console.Error.WriteLine(
-            "Usage: bootstrap-management --username VALUE --display-name VALUE --organization-name VALUE --branch-name VALUE --branch-code VALUE --currency VALUE --locale VALUE --time-zone VALUE --rollover HH:mm --preferred-language en|ar [--email VALUE] [--password-stdin]");
+            "Usage: bootstrap-management --username VALUE --display-name VALUE --organization-name VALUE --branch-name VALUE --branch-code VALUE --currency VALUE --locale VALUE --time-zone VALUE --rollover HH:mm --preferred-language en|ar [--email VALUE] [--all-organization-branches] [--password-stdin]\n   or: provision-first-administrator --username VALUE (--branch-code VALUE [...] | --all-organization-branches)");
 
     private sealed class BootstrapAlreadyInitializedException : Exception;
     private sealed class PendingMigrationException : Exception;
@@ -266,18 +371,26 @@ internal sealed record BootstrapArguments(
     string Locale,
     string TimeZone,
     string Rollover,
-    bool PasswordFromStandardInput)
+    bool PasswordFromStandardInput,
+    bool AllOrganizationBranches)
 {
     public static BootstrapArguments Parse(string[] args)
     {
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
         bool passwordStdin = false;
+        bool allOrganizationBranches = false;
         for (int index = 0; index < args.Length; index++)
         {
             string option = args[index];
             if (option == "--password-stdin")
             {
                 passwordStdin = true;
+                continue;
+            }
+
+            if (option == "--all-organization-branches")
+            {
+                allOrganizationBranches = true;
                 continue;
             }
 
@@ -299,7 +412,8 @@ internal sealed record BootstrapArguments(
         var result = new BootstrapArguments(
             Required("--username"), Required("--display-name"), email, Required("--preferred-language"),
             Required("--organization-name"), Required("--branch-name"), Required("--branch-code"),
-            Required("--currency"), Required("--locale"), Required("--time-zone"), Required("--rollover"), passwordStdin);
+            Required("--currency"), Required("--locale"), Required("--time-zone"), Required("--rollover"),
+            passwordStdin, allOrganizationBranches);
         if (values.Count > 0)
         {
             throw new ArgumentException($"Unknown option '{values.Keys.First()}'.");

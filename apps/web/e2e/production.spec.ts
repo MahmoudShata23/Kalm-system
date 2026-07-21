@@ -12,7 +12,17 @@ test("production exposes only the real login route and no test or bypass routes"
   await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
   await expect(page.getByTestId("primeng-accessibility-fixture")).toHaveCount(0);
 
-  for (const path of ["/__test/clock", "/api/v1/bootstrap", "/auth/bypass", "/test-credentials"]) {
+  for (const path of [
+    "/__test/clock",
+    "/api/v1/bootstrap",
+    "/api/v1/auth/provision-first-administrator",
+    "/api/v1/roles",
+    "/api/v1/permissions",
+    "/api/v1/users",
+    "/api/v1/branches",
+    "/auth/bypass",
+    "/test-credentials"
+  ]) {
     await page.goto(path);
     await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
   }

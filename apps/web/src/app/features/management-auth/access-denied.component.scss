@@ -1,0 +1,5 @@
+:host { display: block; }
+.access-card { width: min(100%, 560px); margin: 0 auto; padding: clamp(28px, 5vw, 48px); text-align: center; border: 1px solid var(--kalm-warm-beige-deep); border-radius: var(--kalm-radius-large); background: var(--kalm-surface-raised); }
+.pi-lock { color: var(--kalm-coffee); font-size: 2rem; }
+h1 { margin: 16px 0 12px; color: var(--kalm-charcoal); }
+p { margin: 0 0 24px; color: var(--kalm-coffee); line-height: 1.6; }

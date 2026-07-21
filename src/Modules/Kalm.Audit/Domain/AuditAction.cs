@@ -14,5 +14,14 @@ public enum AuditAction
     ManagementLoginFailed,
     ManagementAccountLocked,
     ManagementLogoutSucceeded,
-    ManagementSessionRevoked
+    ManagementSessionRevoked,
+    SystemRoleProvisioned,
+    RolePermissionSetChanged,
+    UserRoleAssigned,
+    UserRoleRevoked,
+    UserBranchAccessChanged,
+    AuthorizationProvisioningCompleted,
+    AuthorizationProvisioningFailed,
+    ManagementAccessRevoked,
+    AuthorizationSessionsRevoked
 }

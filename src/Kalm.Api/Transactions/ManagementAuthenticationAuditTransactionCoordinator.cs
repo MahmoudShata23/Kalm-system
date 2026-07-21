@@ -1,6 +1,7 @@
 using System.Text;
 using Kalm.Api.Configuration;
 using Kalm.Api.Features.Authentication;
+using Kalm.Api.Features.Authorization;
 using Kalm.Audit.Application;
 using Kalm.Audit.Domain;
 using Kalm.Audit.Infrastructure.Persistence;
@@ -125,8 +126,9 @@ public sealed class ManagementAuthenticationAuditTransactionCoordinator
                 correlationId, networkIdentifier, userAgent, transactionCancellationToken);
 
             return new ManagementLoginResult(true, session.Id, new ManagementSessionSnapshot(
-                session.Id, user.Id, user.Username, user.DisplayName, user.PreferredLanguage,
-                session.InactivityExpiresAtUtc, session.AbsoluteExpiresAtUtc, session.LastReauthenticatedAtUtc));
+                session.Id, user.Id, user.OrganizationId, user.Username, user.DisplayName, user.PreferredLanguage,
+                session.InactivityExpiresAtUtc, session.AbsoluteExpiresAtUtc, session.LastReauthenticatedAtUtc,
+                EffectiveAuthorizationSnapshot.Empty(user.Id, user.OrganizationId)));
         }, cancellationToken);
     }
 

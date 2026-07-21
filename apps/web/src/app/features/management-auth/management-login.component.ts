@@ -3,7 +3,9 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from "@angula
 import { ButtonModule } from "primeng/button";
 import { InputTextModule } from "primeng/inputtext";
 import { PasswordModule } from "primeng/password";
+import { Router } from "@angular/router";
 import { ManagementAuthService } from "../../core/auth/management-auth.service";
+import { MANAGEMENT_ACCESS_PERMISSION } from "../../core/auth/management-permissions";
 import { LanguageService } from "../../core/i18n/language.service";
 
 @Component({
@@ -17,6 +19,7 @@ import { LanguageService } from "../../core/i18n/language.service";
 export class ManagementLoginComponent {
   private readonly auth = inject(ManagementAuthService);
   private readonly language = inject(LanguageService);
+  private readonly router = inject(Router);
   private readonly identifierInput = viewChild<ElementRef<HTMLInputElement>>("identifierInput");
   private readonly passwordHost = viewChild<ElementRef<HTMLElement>>("passwordHost");
 
@@ -39,6 +42,9 @@ export class ManagementLoginComponent {
     this.errorMessage.set("");
     try {
       await this.auth.login(this.form.getRawValue());
+      await this.router.navigate([
+        this.auth.hasPermission(MANAGEMENT_ACCESS_PERMISSION) ? "/management" : "/management/access-denied"
+      ]);
     } catch {
       this.errorMessage.set(this.copy().genericError);
       queueMicrotask(() => this.identifierInput()?.nativeElement.focus());
