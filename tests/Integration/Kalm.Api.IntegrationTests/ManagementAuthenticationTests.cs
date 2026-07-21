@@ -406,7 +406,7 @@ public sealed class ManagementAuthenticationTests
     }
 
     [Fact]
-    public async Task RemovingEveryPermission_TakesEffectNextRequestWithoutRevokingAuthenticationSession()
+    public async Task RemovingPermission_TakesEffectNextRequestWithoutRevokingAuthenticationSession()
     {
         await using var database = await AuthDatabase.CreateAsync();
         await database.MigrateAndSeedAsync();
@@ -415,12 +415,14 @@ public sealed class ManagementAuthenticationTests
         using HttpClient client = CreateHttpsClient(factory);
         (await LoginAsync(client, (await GetCsrfAsync(client)).Token, Password)).EnsureSuccessStatusCode();
 
-        await database.RemoveEveryPermissionAsync();
+        await database.RemovePermissionAsync(PermissionCodes.UsersView);
 
         using JsonDocument body = JsonDocument.Parse(await client.GetStringAsync("/api/v1/auth/me"));
         Assert.True(body.RootElement.GetProperty("isAuthenticated").GetBoolean());
-        Assert.Empty(body.RootElement.GetProperty("permissions").EnumerateArray());
-        Assert.Equal(JsonValueKind.Null, body.RootElement.GetProperty("branchAccess").ValueKind);
+        string[] permissions = body.RootElement.GetProperty("permissions").EnumerateArray().Select(element => element.GetString()!).ToArray();
+        Assert.DoesNotContain(PermissionCodes.UsersView, permissions);
+        Assert.Contains(PermissionCodes.ManagementAccess, permissions);
+        Assert.Equal(JsonValueKind.Object, body.RootElement.GetProperty("branchAccess").ValueKind);
         await using var identity = database.CreateIdentityContext();
         Assert.Null((await identity.UserSessions.SingleAsync()).RevokedAtUtc);
         Assert.Equal(3, (await identity.Users.SingleAsync()).AuthorizationVersion);
@@ -617,14 +619,16 @@ public sealed class ManagementAuthenticationTests
             return activeBranch.Id;
         }
 
-        public async Task RemoveEveryPermissionAsync()
+        public async Task RemovePermissionAsync(string permissionCode)
         {
             await using var identity = CreateIdentityContext();
             DateTimeOffset now = InitialTime.AddMinutes(2);
-            foreach (RolePermission grant in await identity.RolePermissions.Where(candidate => candidate.RevokedAtUtc == null).ToArrayAsync())
-            {
-                grant.Revoke(now);
-            }
+            RolePermission grant = await (
+                from candidate in identity.RolePermissions
+                join permission in identity.Permissions on candidate.PermissionId equals permission.Id
+                where candidate.RevokedAtUtc == null && permission.Code == permissionCode
+                select candidate).SingleAsync();
+            grant.Revoke(now);
 
             (await identity.Users.SingleAsync()).AdvanceAuthorizationVersion(now);
             await identity.SaveChangesAsync();

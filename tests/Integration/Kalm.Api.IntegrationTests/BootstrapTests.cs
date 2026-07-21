@@ -285,6 +285,42 @@ public sealed class BootstrapTests
         Assert.Empty(await organization.UserBranchAssignments.ToListAsync());
     }
 
+    [Fact]
+    public async Task TrustedRecovery_RequiresExactConfirmationRejectsArbitraryPermissionsAndIsIdempotent()
+    {
+        await using var database = await BootstrapDatabase.CreateAsync();
+        await database.MigrateAsync();
+        await database.SeedExistingUserAsync();
+        using var environment = new BootstrapEnvironment(database.ConnectionString);
+        Assert.Equal(0, await BootstrapProgram.RunAsync([
+            "provision-first-administrator", "--username", "manager", "--branch-code", "CAI-01"
+        ]));
+        await using var identityBefore = database.CreateIdentity();
+        Guid organizationId = await identityBefore.Users.Select(user => user.OrganizationId).SingleAsync();
+
+        Assert.Equal(2, await BootstrapProgram.RunAsync([
+            "repair-first-administrator", "--organization-id", organizationId.ToString("D"),
+            "--username", "manager", "--confirm", "wrong"
+        ]));
+        Assert.Equal(2, await BootstrapProgram.RunAsync([
+            "repair-first-administrator", "--organization-id", organizationId.ToString("D"),
+            "--username", "manager", "--confirm", "RESTORE-FIRST-ADMINISTRATOR",
+            "--permission", PermissionCodes.ManagementAccess
+        ]));
+
+        string[] exact = [
+            "repair-first-administrator", "--organization-id", organizationId.ToString("D"),
+            "--username", "manager", "--confirm", "RESTORE-FIRST-ADMINISTRATOR"
+        ];
+        Assert.Equal(0, await BootstrapProgram.RunAsync(exact));
+        Assert.Equal(0, await BootstrapProgram.RunAsync(exact));
+
+        await using var identity = database.CreateIdentity();
+        Assert.Equal(1, await identity.Roles.CountAsync());
+        Assert.Equal(58, await identity.RolePermissions.CountAsync(grant => grant.RevokedAtUtc == null));
+        Assert.Equal(1, await identity.UserRoleAssignments.CountAsync(assignment => assignment.RevokedAtUtc == null));
+    }
+
     [Theory]
     [InlineData("identity")]
     [InlineData("organization")]

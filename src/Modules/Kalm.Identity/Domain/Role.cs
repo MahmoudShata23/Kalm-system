@@ -38,17 +38,51 @@ public sealed class Role
     public DateTimeOffset UpdatedAtUtc { get; private set; }
     public DateTimeOffset? ArchivedAtUtc { get; private set; }
 
+    public bool IsProtectedSystemRole => SystemKey is not null;
+
     public static Role Create(Guid id, Guid organizationId, RoleName name, string? systemKey, DateTimeOffset now)
         => new(id, organizationId, name, systemKey, now);
 
-    public void RecordPermissionSetChanged(DateTimeOffset now)
+    public bool UpdateDefinition(RoleName name, bool permissionSetChanged, DateTimeOffset now)
     {
+        EnsureNormallyAdministrable();
         EnsureActive();
+        bool nameChanged = !string.Equals(Name, name.Value, StringComparison.Ordinal);
+        if (!nameChanged && !permissionSetChanged)
+        {
+            return false;
+        }
+
+        Name = name.Value;
+        NormalizedName = name.NormalizedValue;
+        AdvanceVersion(now);
+        return true;
+    }
+
+    public void RecordSystemPermissionSetProvisioned(DateTimeOffset now)
+    {
+        EnsureProtectedSystemRole();
+        EnsureActive();
+        AdvanceVersion(now);
+    }
+
+    public void RestoreProtectedSystemRole(DateTimeOffset now)
+    {
+        EnsureProtectedSystemRole();
+        EnsureUtc(now);
+        if (Status == RoleStatus.Active)
+        {
+            return;
+        }
+
+        Status = RoleStatus.Active;
+        ArchivedAtUtc = null;
         AdvanceVersion(now);
     }
 
     public void Archive(DateTimeOffset now)
     {
+        EnsureNormallyAdministrable();
         EnsureUtc(now);
         if (Status == RoleStatus.Archived)
         {
@@ -58,6 +92,22 @@ public sealed class Role
         Status = RoleStatus.Archived;
         ArchivedAtUtc = now;
         AdvanceVersion(now);
+    }
+
+    private void EnsureNormallyAdministrable()
+    {
+        if (IsProtectedSystemRole)
+        {
+            throw new InvalidOperationException("Protected system roles cannot be changed through normal role administration.");
+        }
+    }
+
+    private void EnsureProtectedSystemRole()
+    {
+        if (!IsProtectedSystemRole)
+        {
+            throw new InvalidOperationException("The operational system-role path requires a protected system role.");
+        }
     }
 
     private void EnsureActive()

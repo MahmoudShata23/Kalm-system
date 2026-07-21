@@ -10,7 +10,7 @@ export default defineConfig({
   projects: [
     {
       name: "chromium-accessibility",
-      testMatch: "shell.spec.ts",
+      testMatch: ["shell.spec.ts", "roles.spec.ts"],
       use: {
         ...devices["Desktop Chrome"],
         baseURL: process.env["PLAYWRIGHT_BASE_URL"] ?? "http://127.0.0.1:4200"

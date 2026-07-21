@@ -28,6 +28,8 @@ public sealed class MilestoneOneAMigrationTests
     private const string IdentityAuthorizationMigration = "20260720233035_AddAuthorizationFoundation";
     private const string OrganizationAuthorizationMigration = "20260720233359_AddExplicitUserBranchAccess";
     private const string AuditAuthorizationMigration = "20260720233502_ExtendAuthorizationAuditActions";
+    private const string IdentityRoleAdministrationMigration = "20260721220000_AddRoleAdministrationSafeguards";
+    private const string AuditRoleAdministrationMigration = "20260721220500_ExtendRoleAdministrationAuditActions";
 
     [Fact]
     public async Task CleanDatabase_AppliesAllContextsWithSeparateHistoryTablesAndAuditTrigger()
@@ -65,8 +67,8 @@ public sealed class MilestoneOneAMigrationTests
         await using var identity = CreateIdentityContext(database.ConnectionString);
         Assert.Equal([FoundationMigration], await platform.Database.GetAppliedMigrationsAsync());
         Assert.Equal([OrganizationMigration, OrganizationAuthorizationMigration], await organization.Database.GetAppliedMigrationsAsync());
-        Assert.Equal([AuditMigration, AuditAuthenticationMigration, AuditAuthorizationMigration], await audit.Database.GetAppliedMigrationsAsync());
-        Assert.Equal([IdentityMigration, IdentityAuthorizationMigration], await identity.Database.GetAppliedMigrationsAsync());
+        Assert.Equal([AuditMigration, AuditAuthenticationMigration, AuditAuthorizationMigration, AuditRoleAdministrationMigration], await audit.Database.GetAppliedMigrationsAsync());
+        Assert.Equal([IdentityMigration, IdentityAuthorizationMigration, IdentityRoleAdministrationMigration], await identity.Database.GetAppliedMigrationsAsync());
         Assert.Equal(58, await identity.Permissions.CountAsync());
         Assert.Equal(
             PermissionCatalogue.AllCodes,
@@ -129,8 +131,8 @@ public sealed class MilestoneOneAMigrationTests
         Assert.Equal(auditId, await auditCheck.AuditEntries.Select(entry => entry.Id).SingleAsync());
         Assert.Equal([FoundationMigration], await platformCheck.Database.GetAppliedMigrationsAsync());
         Assert.Equal([OrganizationMigration, OrganizationAuthorizationMigration], await organizationCheck.Database.GetAppliedMigrationsAsync());
-        Assert.Equal([AuditMigration, AuditAuthenticationMigration, AuditAuthorizationMigration], await auditCheck.Database.GetAppliedMigrationsAsync());
-        Assert.Equal([IdentityMigration, IdentityAuthorizationMigration], await identityCheck.Database.GetAppliedMigrationsAsync());
+        Assert.Equal([AuditMigration, AuditAuthenticationMigration, AuditAuthorizationMigration, AuditRoleAdministrationMigration], await auditCheck.Database.GetAppliedMigrationsAsync());
+        Assert.Equal([IdentityMigration, IdentityAuthorizationMigration, IdentityRoleAdministrationMigration], await identityCheck.Database.GetAppliedMigrationsAsync());
     }
 
     [Fact]
@@ -209,6 +211,60 @@ public sealed class MilestoneOneAMigrationTests
     }
 
     [Fact]
+    public async Task ExactSliceThreeDatabase_UpgradesWithoutChangingOperationalAuthorizationData()
+    {
+        await using var database = await SliceOneDatabase.CreateAsync();
+        Guid organizationId = Guid.NewGuid();
+        Guid roleId = Guid.NewGuid();
+        Guid userId = Guid.NewGuid();
+        DateTimeOffset now = new(2026, 7, 21, 10, 0, 0, TimeSpan.Zero);
+
+        await using (var identity = CreateIdentityContext(database.ConnectionString))
+        {
+            await identity.Database.MigrateAsync(IdentityAuthorizationMigration);
+            User user = User.Create(userId, organizationId, new Username("slice-three-user"), null, new DisplayName("Slice Three User"), "en", now);
+            Role role = Role.Create(roleId, organizationId, new RoleName("Slice Three Role"), null, now);
+            Permission permission = await identity.Permissions.SingleAsync(candidate => candidate.Code == PermissionCodes.ReportsSales);
+            identity.Users.Add(user);
+            identity.Roles.Add(role);
+            identity.RolePermissions.Add(RolePermission.Grant(Guid.NewGuid(), roleId, permission.Id, now));
+            identity.UserRoleAssignments.Add(UserRoleAssignment.Assign(Guid.NewGuid(), organizationId, userId, roleId, now));
+            await identity.SaveChangesAsync();
+        }
+
+        Guid auditId = Guid.NewGuid();
+        await using (var audit = CreateAuditContext(database.ConnectionString))
+        {
+            await audit.Database.MigrateAsync(AuditAuthorizationMigration);
+            audit.AuditEntries.Add(AuditEntry.Create(
+                auditId, now, organizationId, null, null, userId, AuditActorType.User, null,
+                AuditAction.RolePermissionSetChanged, "Role", roleId, AuditResult.Succeeded, null,
+                "slice-three-upgrade", null, null, null, null));
+            await audit.SaveChangesAsync();
+        }
+
+        await using (var identity = CreateIdentityContext(database.ConnectionString))
+        {
+            await identity.Database.MigrateAsync();
+        }
+        await using (var audit = CreateAuditContext(database.ConnectionString))
+        {
+            await audit.Database.MigrateAsync();
+        }
+
+        await using var identityCheck = CreateIdentityContext(database.ConnectionString);
+        Role storedRole = await identityCheck.Roles.SingleAsync(candidate => candidate.Id == roleId);
+        Assert.Equal("Slice Three Role", storedRole.Name);
+        Assert.Equal(1, storedRole.Version);
+        Assert.Equal(1, await identityCheck.RolePermissions.CountAsync(grant => grant.RoleId == roleId && grant.RevokedAtUtc == null));
+        Assert.Equal(1, await identityCheck.UserRoleAssignments.CountAsync(assignment => assignment.RoleId == roleId && assignment.RevokedAtUtc == null));
+        Assert.Equal([IdentityMigration, IdentityAuthorizationMigration, IdentityRoleAdministrationMigration], await identityCheck.Database.GetAppliedMigrationsAsync());
+        await using var auditCheck = CreateAuditContext(database.ConnectionString);
+        Assert.Equal(auditId, await auditCheck.AuditEntries.Select(entry => entry.Id).SingleAsync());
+        Assert.Equal([AuditMigration, AuditAuthenticationMigration, AuditAuthorizationMigration, AuditRoleAdministrationMigration], await auditCheck.Database.GetAppliedMigrationsAsync());
+    }
+
+    [Fact]
     public void PreviouslyReleasedMigrationFiles_RetainApprovedByteHashes()
     {
         var expected = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -222,7 +278,17 @@ public sealed class MilestoneOneAMigrationTests
             ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260720181822_AddAuditFoundation.cs"] = "fd9c13d3fe0df9c2ab5536eb6bea69e56b4fb255afd996bf9ecb6e659a5cbb4e",
             ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260720181822_AddAuditFoundation.Designer.cs"] = "310c8f94770183214d62c84f5799ae741b7ec958555cd24e5ea9e98232c5d9d0",
             ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260720202409_ExtendManagementAuthenticationAuditActions.cs"] = "9baae94b3c5316d2992495ae884359550c8638109fad522239665827ee603afd",
-            ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260720202409_ExtendManagementAuthenticationAuditActions.Designer.cs"] = "4116a164ae6e8f61b932c03a852cf0dcf2d5c421de4d0273ce705a35adde7e4f"
+            ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260720202409_ExtendManagementAuthenticationAuditActions.Designer.cs"] = "4116a164ae6e8f61b932c03a852cf0dcf2d5c421de4d0273ce705a35adde7e4f",
+            ["src/Modules/Kalm.Identity.Infrastructure/Migrations/20260720233035_AddAuthorizationFoundation.cs"] = "f0844ba6f641080651df47285a82173b3df3377f4df6bf221b85e2c513e3d582",
+            ["src/Modules/Kalm.Identity.Infrastructure/Migrations/20260720233035_AddAuthorizationFoundation.Designer.cs"] = "df105bf9afc057273e621175c02b5d56d5cc275e5c40f7c74b88016b528e13d8",
+            ["src/Modules/Kalm.Organization.Infrastructure/Migrations/20260720233359_AddExplicitUserBranchAccess.cs"] = "89d5455a0111e728336f289add6d92a51a866d5a5283d33e6b2ff69ea6e4436d",
+            ["src/Modules/Kalm.Organization.Infrastructure/Migrations/20260720233359_AddExplicitUserBranchAccess.Designer.cs"] = "0e8bdf9e2c41dd464573c8ff25d77c028d12358075392b1f309d4b158beac15b",
+            ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260720233502_ExtendAuthorizationAuditActions.cs"] = "da5e6bb391183eb4cb853aee04391f949bbdec3492a9b3f13e11dca9b83ffa3a",
+            ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260720233502_ExtendAuthorizationAuditActions.Designer.cs"] = "20153d66c1e2525ce59381d881fd14b18d36e5fce45eed4aee6440d01771259d",
+            ["src/Modules/Kalm.Identity.Infrastructure/Migrations/20260721220000_AddRoleAdministrationSafeguards.cs"] = "cf79e47374f91ac81ef1ee1a2347e52611cee5c77e6b10f31c95ad2b62540189",
+            ["src/Modules/Kalm.Identity.Infrastructure/Migrations/20260721220000_AddRoleAdministrationSafeguards.Designer.cs"] = "7c6efc66a98f8d00fe91d545cdfbfe554ca9f2130750d23bf198c52040216936",
+            ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260721220500_ExtendRoleAdministrationAuditActions.cs"] = "738e324b63940b65e8d17b838882e3335daaac96fc3eee19b0fc330486d18a80",
+            ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260721220500_ExtendRoleAdministrationAuditActions.Designer.cs"] = "34654bcf048e2968b15addaed7b1cefa6caaebe7717dd5c6ba7f5b88c643bd37"
         };
         string root = FindRepositoryRoot();
         foreach ((string relativePath, string expectedHash) in expected)
@@ -414,7 +480,11 @@ public sealed class MilestoneOneAMigrationTests
 
         await using (var seed = CreateIdentityContext(database.ConnectionString))
         {
+            Permission permission = await seed.Permissions.SingleAsync(candidate => candidate.Code == PermissionCodes.ReportsSales);
             seed.Roles.AddRange(firstRole, secondOrganizationRole);
+            seed.RolePermissions.AddRange(
+                RolePermission.Grant(Guid.NewGuid(), firstRole.Id, permission.Id, now),
+                RolePermission.Grant(Guid.NewGuid(), secondOrganizationRole.Id, permission.Id, now));
             seed.Users.Add(user);
             await seed.SaveChangesAsync();
         }

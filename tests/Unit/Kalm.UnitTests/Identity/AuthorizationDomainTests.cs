@@ -20,6 +20,55 @@ public sealed class AuthorizationDomainTests
         Assert.Equal("2026.07.slice3.v1", PermissionCatalogue.FirstAdministratorPermissionSetVersion);
     }
 
+    [Fact]
+    public void PresentationCatalogue_CoversEveryPermissionExactlyOnceWithBilingualMetadata()
+    {
+        PermissionPresentation[] entries = PermissionPresentationCatalogue.All.ToArray();
+
+        Assert.Equal(58, entries.Length);
+        Assert.Equal(PermissionCatalogue.AllCodes.OrderBy(code => code), entries.Select(entry => entry.Code).OrderBy(code => code));
+        Assert.Equal(entries.Length, entries.Select(entry => entry.Code).Distinct(StringComparer.Ordinal).Count());
+        Assert.All(entries, entry =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(entry.GroupCode));
+            Assert.True(entry.GroupOrder > 0);
+            Assert.True(entry.ItemOrder > 0);
+            Assert.False(string.IsNullOrWhiteSpace(entry.EnglishLabel));
+            Assert.False(string.IsNullOrWhiteSpace(entry.EnglishDescription));
+            Assert.False(string.IsNullOrWhiteSpace(entry.ArabicLabel));
+            Assert.False(string.IsNullOrWhiteSpace(entry.ArabicDescription));
+        });
+        Assert.Equal(entries, entries.OrderBy(entry => entry.GroupOrder).ThenBy(entry => entry.ItemOrder));
+    }
+
+    [Fact]
+    public void NormalRoleUpdate_ChangesNameAndPermissionSetWithOneVersionIncrementAndSupportsNoOp()
+    {
+        Role role = Role.Create(Guid.NewGuid(), Guid.NewGuid(), new RoleName("Manager"), null, Now);
+
+        Assert.True(role.UpdateDefinition(new RoleName("Cafe Manager"), permissionSetChanged: true, Now.AddMinutes(1)));
+        Assert.Equal(2, role.Version);
+        Assert.Equal("Cafe Manager", role.Name);
+        Assert.False(role.UpdateDefinition(new RoleName("Cafe Manager"), permissionSetChanged: false, Now.AddMinutes(2)));
+        Assert.Equal(2, role.Version);
+    }
+
+    [Fact]
+    public void ProtectedSystemRole_RejectsEveryNormalAdministrationMutation()
+    {
+        Role role = Role.Create(
+            Guid.NewGuid(), Guid.NewGuid(), new RoleName("Initial Administrator"),
+            PermissionCatalogue.FirstAdministratorSystemRoleKey, Now);
+
+        Assert.True(role.IsProtectedSystemRole);
+        Assert.Throws<InvalidOperationException>(() => role.UpdateDefinition(new RoleName("Renamed"), false, Now.AddMinutes(1)));
+        Assert.Throws<InvalidOperationException>(() => role.UpdateDefinition(new RoleName(role.Name), true, Now.AddMinutes(1)));
+        Assert.Throws<InvalidOperationException>(() => role.Archive(Now.AddMinutes(1)));
+
+        role.RecordSystemPermissionSetProvisioned(Now.AddMinutes(1));
+        Assert.Equal(2, role.Version);
+    }
+
     [Theory]
     [InlineData("Management.Access")]
     [InlineData("management")]

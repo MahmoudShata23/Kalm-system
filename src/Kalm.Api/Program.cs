@@ -5,6 +5,7 @@ using Kalm.Api.Configuration;
 using Kalm.Api.Features.Authentication;
 using Kalm.Api.Features.Authorization;
 using Kalm.Api.Features.Health;
+using Kalm.Api.Features.RoleAdministration;
 using Kalm.Api.Infrastructure.Correlation;
 using Kalm.Api.Infrastructure.ProblemDetails;
 using Kalm.Api.Persistence;
@@ -29,19 +30,38 @@ if (builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(builder.Con
 
 builder.AddKalmDataProtection();
 builder.Services.AddProblemDetails(options => options.ConfigureKalmProblemDetails());
-builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document, _, _) =>
+builder.Services.AddOpenApi(options =>
 {
-    document.Components ??= new OpenApiComponents();
-    document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
-    document.Components.SecuritySchemes["ManagementCookie"] = new OpenApiSecurityScheme
+    options.AddDocumentTransformer((document, _, _) =>
     {
-        Type = SecuritySchemeType.ApiKey,
-        In = ParameterLocation.Cookie,
-        Name = ManagementAuthenticationConstants.CookieName,
-        Description = "Opaque server-maintained management session cookie."
-    };
-    return Task.CompletedTask;
-}));
+        document.Components ??= new OpenApiComponents();
+        document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
+        document.Components.SecuritySchemes["ManagementCookie"] = new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.ApiKey,
+            In = ParameterLocation.Cookie,
+            Name = ManagementAuthenticationConstants.CookieName,
+            Description = "Opaque server-maintained management session cookie."
+        };
+        return Task.CompletedTask;
+    });
+    options.AddOperationTransformer((operation, _, _) =>
+    {
+        switch (operation.OperationId)
+        {
+            case "GetManagementRole":
+            case "UpdateManagementRole":
+                AddResponseHeader(operation, "200", "ETag", "Strong quoted role aggregate version required by later mutations.");
+                break;
+            case "CreateManagementRole":
+                AddResponseHeader(operation, "201", "ETag", "Strong quoted role aggregate version required by later mutations.");
+                AddResponseHeader(operation, "201", "Location", "Canonical URL of the created role.");
+                break;
+        }
+
+        return Task.CompletedTask;
+    });
+});
 builder.Services.AddKalmDatabase(builder.Configuration);
 static string ResolveConnectionString(IServiceProvider provider)
     => provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<DatabaseOptions>>().Value.ConnectionString;
@@ -60,6 +80,8 @@ builder.Services.AddOptions<ManagementAuthenticationOptions>()
     .ValidateOnStart();
 builder.Services.AddScoped<SliceOneOrganizationAuditTransactionCoordinator>();
 builder.Services.AddScoped<ManagementAuthenticationAuditTransactionCoordinator>();
+builder.Services.AddScoped<RoleAdministrationAuditTransactionCoordinator>();
+builder.Services.AddScoped<RoleAdministrationQueries>();
 builder.Services.AddScoped<ManagementCookieEvents>();
 builder.Services.AddScoped<EffectiveAuthorizationResolver>();
 builder.Services.AddHttpContextAccessor();
@@ -135,7 +157,21 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
     }
 }).WithName("Readiness").WithTags("Health");
 app.MapAuthenticationEndpoints();
+app.MapRoleAdministrationEndpoints();
 
 app.Run();
+
+static void AddResponseHeader(OpenApiOperation operation, string statusCode, string name, string description)
+{
+    if (operation.Responses is null
+        || !operation.Responses.TryGetValue(statusCode, out IOpenApiResponse? response)
+        || response is not OpenApiResponse concreteResponse)
+    {
+        return;
+    }
+
+    concreteResponse.Headers ??= new Dictionary<string, IOpenApiHeader>();
+    concreteResponse.Headers[name] = new OpenApiHeader { Description = description };
+}
 
 public partial class Program;

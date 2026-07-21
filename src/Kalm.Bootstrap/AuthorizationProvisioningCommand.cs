@@ -16,6 +16,156 @@ internal static class AuthorizationProvisioningCommand
 {
     private const long ProvisioningAdvisoryLock = 4_879_113_202_607_21;
 
+    public static async Task RecoverAsync(
+        IdentityDbContext identity,
+        IAuditWriter audit,
+        Guid organizationId,
+        User user,
+        PasswordCredential credential,
+        bool restoreAssignment,
+        DateTimeOffset now,
+        string correlationId,
+        CancellationToken cancellationToken)
+    {
+        if (user.OrganizationId != organizationId
+            || user.Status != UserStatus.Active
+            || credential.UserId != user.Id
+            || credential.Status != PasswordCredentialStatus.Active)
+        {
+            throw new AuthorizationProvisioningConflictException("target_ineligible");
+        }
+
+        await identity.Database.ExecuteSqlRawAsync($"select pg_advisory_xact_lock({ProvisioningAdvisoryLock})", cancellationToken);
+        string managementLockKey = "kalm.identity.management-access:" + organizationId.ToString("D");
+        await identity.Database.ExecuteSqlInterpolatedAsync(
+            $"select pg_advisory_xact_lock(hashtextextended({managementLockKey}, 0))",
+            cancellationToken);
+
+        Permission[] activePermissions = await identity.Permissions
+            .Where(permission => permission.Status == PermissionStatus.Active)
+            .OrderBy(permission => permission.Code)
+            .ToArrayAsync(cancellationToken);
+        string[] expectedCodes = PermissionCatalogue.FirstAdministratorPermissionCodes.OrderBy(code => code, StringComparer.Ordinal).ToArray();
+        if (!activePermissions.Select(permission => permission.Code).SequenceEqual(expectedCodes, StringComparer.Ordinal))
+        {
+            throw new AuthorizationProvisioningConflictException("permission_catalogue_mismatch");
+        }
+
+        Role? role = await identity.Roles
+            .FromSqlInterpolated($"select * from identity.roles where organization_id = {organizationId} and system_key = {PermissionCatalogue.FirstAdministratorSystemRoleKey} for update")
+            .SingleOrDefaultAsync(cancellationToken);
+        bool roleCreated = false;
+        if (role is null)
+        {
+            role = Role.Create(
+                Guid.NewGuid(), organizationId, new RoleName("Initial Administrator"),
+                PermissionCatalogue.FirstAdministratorSystemRoleKey, now);
+            identity.Roles.Add(role);
+            roleCreated = true;
+            await AppendAsync(
+                audit, now, organizationId, AuditAction.SystemRoleProvisioned, "Role", role.Id,
+                null, SafeJson(("permissionSetVersion", PermissionCatalogue.FirstAdministratorPermissionSetVersion)),
+                correlationId, cancellationToken);
+        }
+        else
+        {
+            role.RestoreProtectedSystemRole(now);
+        }
+
+        RolePermission[] activeGrants = await identity.RolePermissions
+            .Where(grant => grant.RoleId == role.Id && grant.RevokedAtUtc == null)
+            .ToArrayAsync(cancellationToken);
+        Dictionary<Guid, Permission> permissionById = activePermissions.ToDictionary(permission => permission.Id);
+        string[] existingCodes = activeGrants
+            .Where(grant => permissionById.ContainsKey(grant.PermissionId))
+            .Select(grant => permissionById[grant.PermissionId].Code)
+            .OrderBy(code => code, StringComparer.Ordinal)
+            .ToArray();
+        string[] addedCodes = expectedCodes.Except(existingCodes, StringComparer.Ordinal).ToArray();
+        string[] removedCodes = existingCodes.Except(expectedCodes, StringComparer.Ordinal).ToArray();
+        bool permissionChanged = addedCodes.Length > 0 || removedCodes.Length > 0 || activeGrants.Length != existingCodes.Length;
+        if (permissionChanged)
+        {
+            HashSet<string> expected = expectedCodes.ToHashSet(StringComparer.Ordinal);
+            foreach (RolePermission grant in activeGrants.Where(grant => !permissionById.TryGetValue(grant.PermissionId, out Permission? permission) || !expected.Contains(permission.Code)))
+            {
+                grant.Revoke(now);
+            }
+
+            Dictionary<string, Permission> byCode = activePermissions.ToDictionary(permission => permission.Code, StringComparer.Ordinal);
+            foreach (string code in addedCodes)
+            {
+                identity.RolePermissions.Add(RolePermission.Grant(Guid.NewGuid(), role.Id, byCode[code].Id, now));
+            }
+
+            if (!roleCreated)
+            {
+                role.RecordSystemPermissionSetProvisioned(now);
+            }
+
+            await AppendAsync(
+                audit, now, organizationId, AuditAction.RolePermissionSetChanged, "Role", role.Id,
+                SafeJson(("permissionCodes", string.Join(',', existingCodes))),
+                SafeJson(
+                    ("permissionSetVersion", PermissionCatalogue.FirstAdministratorPermissionSetVersion),
+                    ("permissionCodes", string.Join(',', expectedCodes))),
+                correlationId, cancellationToken);
+        }
+
+        UserRoleAssignment[] activeAssignments = await identity.UserRoleAssignments
+            .Where(assignment => assignment.RoleId == role.Id && assignment.RevokedAtUtc == null)
+            .ToArrayAsync(cancellationToken);
+        if (activeAssignments.Any(assignment => assignment.OrganizationId != organizationId))
+        {
+            throw new AuthorizationProvisioningConflictException("administrator_target_conflict");
+        }
+
+        bool assignmentChanged = false;
+        if (restoreAssignment)
+        {
+            if (activeAssignments.Length > 0 && activeAssignments.All(assignment => assignment.UserId != user.Id))
+            {
+                throw new AuthorizationProvisioningConflictException("administrator_target_conflict");
+            }
+
+            if (activeAssignments.All(assignment => assignment.UserId != user.Id))
+            {
+                identity.UserRoleAssignments.Add(UserRoleAssignment.Assign(Guid.NewGuid(), organizationId, user.Id, role.Id, now));
+                assignmentChanged = true;
+                await AppendAsync(
+                    audit, now, organizationId, AuditAction.UserRoleAssigned, "User", user.Id,
+                    null, SafeJson(("roleId", role.Id.ToString("D"))), correlationId, cancellationToken);
+            }
+        }
+
+        if (permissionChanged)
+        {
+            Guid[] assignedUserIds = activeAssignments.Select(assignment => assignment.UserId).Distinct().OrderBy(id => id).ToArray();
+            User[] affectedUsers = assignedUserIds.Length == 0
+                ? []
+                : await identity.Users
+                    .FromSqlRaw("select * from identity.users where id = any ({0}) order by id for update", assignedUserIds)
+                    .ToArrayAsync(cancellationToken);
+            foreach (User affected in affectedUsers)
+            {
+                affected.AdvanceAuthorizationVersion(now);
+            }
+        }
+
+        if (assignmentChanged && !activeAssignments.Any(assignment => assignment.UserId == user.Id))
+        {
+            user.AdvanceAuthorizationVersion(now);
+        }
+
+        await AppendAsync(
+            audit, now, organizationId, AuditAction.AuthorizationProvisioningCompleted, "Role", role.Id,
+            null,
+            SafeJson(
+                ("permissionSetVersion", PermissionCatalogue.FirstAdministratorPermissionSetVersion),
+                ("assignmentRestored", assignmentChanged.ToString())),
+            correlationId, cancellationToken);
+    }
+
     public static async Task ProvisionAsync(
         IdentityDbContext identity,
         OrganizationDbContext organization,
@@ -88,7 +238,7 @@ internal static class AuthorizationProvisioningCommand
                 identity.RolePermissions.Add(RolePermission.Grant(Guid.NewGuid(), role.Id, permission.Id, now));
             }
 
-            role.RecordPermissionSetChanged(now);
+            role.RecordSystemPermissionSetProvisioned(now);
             changed = true;
             await AppendAsync(
                 audit, now, user.OrganizationId, AuditAction.RolePermissionSetChanged, "Role", role.Id,

@@ -46,6 +46,11 @@ internal static class BootstrapProgram
                 return await RunAuthorizationProvisioningAsync(args[1..], CancellationToken.None);
             }
 
+            if (string.Equals(args[0], "repair-first-administrator", StringComparison.Ordinal))
+            {
+                return await RunAuthorizationRecoveryAsync(args[1..], CancellationToken.None);
+            }
+
             if (!string.Equals(args[0], "bootstrap-management", StringComparison.Ordinal))
             {
                 WriteUsage();
@@ -296,6 +301,74 @@ internal static class BootstrapProgram
         }
     }
 
+    private static async Task<int> RunAuthorizationRecoveryAsync(string[] args, CancellationToken cancellationToken)
+    {
+        AuthorizationRecoveryArguments parsed = AuthorizationRecoveryArguments.Parse(args);
+        string connectionString = RequiredEnvironment("KALM_DATABASE_CONNECTION_STRING");
+        string correlationId = Guid.NewGuid().ToString("N");
+        try
+        {
+            await using var connection = new NpgsqlConnection(connectionString);
+            await connection.OpenAsync(cancellationToken);
+            var organizationOptions = new DbContextOptionsBuilder<OrganizationDbContext>()
+                .UseNpgsql(connection, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", "organization")).Options;
+            var identityOptions = new DbContextOptionsBuilder<IdentityDbContext>()
+                .UseNpgsql(connection, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", "identity")).Options;
+            var auditOptions = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseNpgsql(connection, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", "audit")).Options;
+            await using var organization = new OrganizationDbContext(organizationOptions);
+            await using var identity = new IdentityDbContext(identityOptions);
+            await using var audit = new AuditDbContext(auditOptions);
+            await EnsureNoPendingMigrationsAsync(organization, identity, audit, cancellationToken);
+
+            await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+            await identity.Database.UseTransactionAsync(transaction, cancellationToken);
+            await audit.Database.UseTransactionAsync(transaction, cancellationToken);
+            try
+            {
+                string normalizedUsername = new Username(parsed.Username).NormalizedValue;
+                User? user = await identity.Users.SingleOrDefaultAsync(
+                    candidate => candidate.OrganizationId == parsed.OrganizationId
+                        && candidate.NormalizedUsername == normalizedUsername,
+                    cancellationToken);
+                PasswordCredential? credential = user is null
+                    ? null
+                    : await identity.PasswordCredentials.SingleOrDefaultAsync(candidate => candidate.UserId == user.Id, cancellationToken);
+                if (user is null || credential is null)
+                {
+                    throw new AuthorizationProvisioningConflictException("target_not_found");
+                }
+
+                await AuthorizationProvisioningCommand.RecoverAsync(
+                    identity,
+                    new AuditWriter(audit),
+                    parsed.OrganizationId,
+                    user,
+                    credential,
+                    parsed.RestoreAssignment,
+                    DateTimeOffset.UtcNow,
+                    correlationId,
+                    cancellationToken);
+                await identity.SaveChangesAsync(cancellationToken);
+                await audit.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                Console.WriteLine("First-administrator system role repaired successfully.");
+                return Success;
+            }
+            catch
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+                throw;
+            }
+        }
+        catch (AuthorizationProvisioningConflictException exception)
+        {
+            await AuthorizationProvisioningCommand.WriteFailureAuditAsync(
+                connectionString, exception.ReasonCode, correlationId, cancellationToken);
+            throw;
+        }
+    }
+
     private static char[] ReadPasswordFromStandardInput()
     {
         if (!Console.IsInputRedirected)
@@ -353,10 +426,70 @@ internal static class BootstrapProgram
 
     private static void WriteUsage()
         => Console.Error.WriteLine(
-            "Usage: bootstrap-management --username VALUE --display-name VALUE --organization-name VALUE --branch-name VALUE --branch-code VALUE --currency VALUE --locale VALUE --time-zone VALUE --rollover HH:mm --preferred-language en|ar [--email VALUE] [--all-organization-branches] [--password-stdin]\n   or: provision-first-administrator --username VALUE (--branch-code VALUE [...] | --all-organization-branches)");
+            "Usage: bootstrap-management --username VALUE --display-name VALUE --organization-name VALUE --branch-name VALUE --branch-code VALUE --currency VALUE --locale VALUE --time-zone VALUE --rollover HH:mm --preferred-language en|ar [--email VALUE] [--all-organization-branches] [--password-stdin]\n   or: provision-first-administrator --username VALUE (--branch-code VALUE [...] | --all-organization-branches)\n   or: repair-first-administrator --organization-id UUID --username VALUE --confirm RESTORE-FIRST-ADMINISTRATOR [--restore-assignment]");
 
     private sealed class BootstrapAlreadyInitializedException : Exception;
     private sealed class PendingMigrationException : Exception;
+}
+
+internal sealed record AuthorizationRecoveryArguments(
+    Guid OrganizationId,
+    string Username,
+    bool RestoreAssignment)
+{
+    private const string RequiredConfirmation = "RESTORE-FIRST-ADMINISTRATOR";
+
+    public static AuthorizationRecoveryArguments Parse(string[] args)
+    {
+        Guid? organizationId = null;
+        string? username = null;
+        string? confirmation = null;
+        bool restoreAssignment = false;
+        for (int index = 0; index < args.Length; index++)
+        {
+            string option = args[index];
+            if (option == "--restore-assignment")
+            {
+                if (restoreAssignment)
+                {
+                    throw new ArgumentException("--restore-assignment was supplied more than once.");
+                }
+
+                restoreAssignment = true;
+                continue;
+            }
+
+            if (index + 1 >= args.Length || args[index + 1].StartsWith("--", StringComparison.Ordinal))
+            {
+                throw new ArgumentException($"Option '{option}' is invalid.");
+            }
+
+            string value = args[++index];
+            if (option == "--organization-id" && organizationId is null && Guid.TryParse(value, out Guid parsedOrganizationId) && parsedOrganizationId != Guid.Empty)
+            {
+                organizationId = parsedOrganizationId;
+            }
+            else if (option == "--username" && username is null)
+            {
+                username = value;
+            }
+            else if (option == "--confirm" && confirmation is null)
+            {
+                confirmation = value;
+            }
+            else
+            {
+                throw new ArgumentException($"Option '{option}' is invalid or duplicated.");
+            }
+        }
+
+        if (organizationId is null || string.IsNullOrWhiteSpace(username) || confirmation != RequiredConfirmation)
+        {
+            throw new ArgumentException("--organization-id, --username, and exact --confirm RESTORE-FIRST-ADMINISTRATOR are required.");
+        }
+
+        return new AuthorizationRecoveryArguments(organizationId.Value, username, restoreAssignment);
+    }
 }
 
 internal sealed record BootstrapArguments(

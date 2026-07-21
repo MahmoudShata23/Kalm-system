@@ -4,6 +4,8 @@ Milestone 1A Slice 2 supports only management password authentication and the tr
 
 Milestone 1A Slice 3 adds trusted operational authorization provisioning. It still exposes no bootstrap, provisioning, user, role, permission, or branch administration HTTP endpoint.
 
+Milestone 1A Slice 4 exposes protected role and permission-set administration only. It adds no user-assignment or recovery HTTP endpoint. All role endpoints require both `management.access` and `roles.manage`.
+
 ## Runtime configuration
 
 Supply production and staging values through deployment secrets or an approved secret manager:
@@ -67,6 +69,18 @@ Exit codes:
 - `4`: required migrations are missing.
 - `5`: required CLI configuration is invalid.
 - `6`: first-administrator authorization conflicts with the requested target, permission set, or branch scope.
+
+## Trusted first-administrator recovery
+
+Recovery is an explicit operational command, never an HTTP route. Apply every current migration and supply the database connection string before running:
+
+```text
+dotnet run --project src/Kalm.Bootstrap -- repair-first-administrator --organization-id <organization-uuid> --username <active-username> --confirm RESTORE-FIRST-ADMINISTRATOR [--restore-assignment]
+```
+
+The command accepts no permission list. It restores only the fixed `2026.07.slice3.v1` first-administrator permission set and protected system-role state. It changes or recreates the target assignment only when `--restore-assignment` is explicitly present. Without that option, permission repair never changes assignments.
+
+The target user and credential must be active and belong to the exact Organization. The command acquires both the provisioning lock and the Organization management-access lock, uses one Identity/Audit local transaction, writes safe System-actor audit events, and is idempotent for concurrent exact invocations. Conflicting targets or state fail closed.
 
 ## Cookies, CSRF, and sessions
 
