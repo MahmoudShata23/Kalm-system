@@ -63,4 +63,15 @@ describe("UsersApi", () => {
     request.flush(null, { status: 204, statusText: "No Content", headers: { ETag: "\"6\"" } });
     expect(etag).toBe("\"6\"");
   });
+
+  it("sends only the PIN and captures the authoritative ETag from a no-content response", () => {
+    let etag = "";
+    api.setPin(user.id, "\"6\"", "123456").subscribe(result => etag = result);
+    const request = http.expectOne(`/api/v1/management/users/${user.id}/pin`);
+    expect(request.request.method).toBe("POST");
+    expect(request.request.headers.get("If-Match")).toBe("\"6\"");
+    expect(request.request.body).toEqual({ pin: "123456" });
+    request.flush(null, { status: 204, statusText: "No Content", headers: { ETag: "\"7\"" } });
+    expect(etag).toBe("\"7\"");
+  });
 });

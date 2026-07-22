@@ -28,6 +28,11 @@ public sealed class UserPasswordRequest
     public string Password { get; set; } = string.Empty;
 }
 
+public sealed class UserPinRequest
+{
+    public string Pin { get; set; } = string.Empty;
+}
+
 public sealed record UserSummaryResponse(
     Guid Id,
     string Username,

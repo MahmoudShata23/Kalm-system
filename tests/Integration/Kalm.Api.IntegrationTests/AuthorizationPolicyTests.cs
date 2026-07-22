@@ -147,7 +147,7 @@ public sealed class AuthorizationPolicyTests
     public async Task CookieChallengeAndForbiddenResponsesUse401And403WithoutRedirects()
     {
         var events = new ManagementCookieEvents(
-            null!, null!, Options.Create(new ManagementAuthenticationOptions()), null!);
+            null!, null!, Options.Create(new ManagementAuthenticationOptions()), null!, null!);
         var scheme = new AuthenticationScheme("test", "test", typeof(CookieAuthenticationHandler));
         var options = new CookieAuthenticationOptions();
 

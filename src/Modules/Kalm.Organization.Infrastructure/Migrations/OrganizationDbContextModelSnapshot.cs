@@ -93,6 +93,180 @@ namespace Kalm.Organization.Infrastructure.Migrations
                     b.ToTable("branches", "organization");
                 });
 
+            modelBuilder.Entity("Kalm.Organization.Domain.Device", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<DateTimeOffset?>("LastSeenAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("last_seen_at_utc");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<DateTimeOffset?>("PairedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("paired_at_utc");
+
+                    b.Property<string>("Platform")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("platform");
+
+                    b.Property<DateTimeOffset?>("RevokedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("revoked_at_utc");
+
+                    b.Property<int>("SecurityVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("security_version");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("type");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("Id", "OrganizationId")
+                        .HasName("ak_devices_id_organization_id");
+
+                    b.HasIndex("BranchId", "OrganizationId");
+
+                    b.HasIndex("OrganizationId", "Status", "Name", "Id")
+                        .HasDatabaseName("ix_devices_organization_status_name_id");
+
+                    b.ToTable("devices", "organization", t =>
+                        {
+                            t.HasCheckConstraint("ck_devices_status", "status in ('PendingPairing', 'Active', 'Revoked')");
+                        });
+                });
+
+            modelBuilder.Entity("Kalm.Organization.Domain.DeviceCredential", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CredentialHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("credential_hash");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("device_id");
+
+                    b.Property<DateTimeOffset>("IssuedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("issued_at_utc");
+
+                    b.Property<DateTimeOffset?>("RevokedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("revoked_at_utc");
+
+                    b.Property<int>("SecurityVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("security_version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CredentialHash")
+                        .IsUnique()
+                        .HasDatabaseName("ux_device_credentials_hash");
+
+                    b.HasIndex("DeviceId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_device_credentials_active")
+                        .HasFilter("revoked_at_utc is null");
+
+                    b.ToTable("device_credentials", "organization");
+                });
+
+            modelBuilder.Entity("Kalm.Organization.Domain.DevicePairingChallenge", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ChallengeHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("challenge_hash");
+
+                    b.Property<DateTimeOffset?>("ConsumedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("consumed_at_utc");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("device_id");
+
+                    b.Property<DateTimeOffset>("ExpiresAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("expires_at_utc");
+
+                    b.Property<DateTimeOffset?>("InvalidatedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("invalidated_at_utc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChallengeHash")
+                        .IsUnique()
+                        .HasDatabaseName("ux_device_pairing_challenges_hash");
+
+                    b.HasIndex("DeviceId", "ExpiresAtUtc")
+                        .HasDatabaseName("ix_device_pairing_challenges_device_expiry");
+
+                    b.ToTable("device_pairing_challenges", "organization", t =>
+                        {
+                            t.HasCheckConstraint("ck_device_pairing_challenges_expiry", "created_at_utc < expires_at_utc");
+                        });
+                });
+
             modelBuilder.Entity("Kalm.Organization.Domain.Organization", b =>
                 {
                     b.Property<Guid>("Id")
@@ -265,6 +439,34 @@ namespace Kalm.Organization.Infrastructure.Migrations
                     b.HasOne("Kalm.Organization.Domain.Organization", null)
                         .WithMany()
                         .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Kalm.Organization.Domain.Device", b =>
+                {
+                    b.HasOne("Kalm.Organization.Domain.Branch", null)
+                        .WithMany()
+                        .HasForeignKey("BranchId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Kalm.Organization.Domain.DeviceCredential", b =>
+                {
+                    b.HasOne("Kalm.Organization.Domain.Device", null)
+                        .WithMany()
+                        .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Kalm.Organization.Domain.DevicePairingChallenge", b =>
+                {
+                    b.HasOne("Kalm.Organization.Domain.Device", null)
+                        .WithMany()
+                        .HasForeignKey("DeviceId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

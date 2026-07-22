@@ -57,6 +57,10 @@
           <input pInputText type="password" [formControl]="password" minlength="15" maxlength="128" autocomplete="new-password" />
           <small>{{ copy().passwordHelp }}</small></label>
           <p-button type="button" icon="pi pi-key" [label]="copy().setPassword" [loading]="saving()" (onClick)="setPassword()" /> }
+        @if (!readOnly()) { <label class="password-field"><span>{{ copy().pin }}</span>
+          <input pInputText type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" [formControl]="pin" />
+          <small>{{ copy().pinHelp }}</small></label>
+          <p-button type="button" icon="pi pi-lock" [label]="copy().setPin" [loading]="saving()" (onClick)="setPin()" /> }
       </section>
       @if (!readOnly()) { <div class="lifecycle-actions">
         @if (current.user.status === "suspended") { <p-button type="button" icon="pi pi-check-circle" [label]="copy().activate" [loading]="saving()" (onClick)="activate()" /> }

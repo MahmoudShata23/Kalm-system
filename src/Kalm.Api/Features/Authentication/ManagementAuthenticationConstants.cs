@@ -8,5 +8,6 @@ public static class ManagementAuthenticationConstants
     public const string SchemeVersionClaim = "kalm:scheme_version";
     public const string SchemeVersion = "1";
     public const string LoginRateLimitPolicy = "management-login";
+    public const string PinLoginRateLimitPolicy = "pin-login";
     public const string SessionItemKey = "Kalm.Management.Session";
 }

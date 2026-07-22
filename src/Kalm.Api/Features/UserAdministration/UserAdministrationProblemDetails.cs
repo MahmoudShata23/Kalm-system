@@ -18,6 +18,7 @@ internal static class UserAdministrationProblemDetails
             "user.roles_invalid" => (StatusCodes.Status422UnprocessableEntity, "Role assignment invalid", "Select one or more active roles from this organization."),
             "user.branch_access_invalid" => (StatusCodes.Status422UnprocessableEntity, "Branch access invalid", "Branch access must use active branches and match the selected scope."),
             "user.password_invalid" => (StatusCodes.Status422UnprocessableEntity, "Password invalid", "Password must contain between 15 and 128 Unicode characters."),
+            "user.pin_invalid" => (StatusCodes.Status422UnprocessableEntity, "PIN invalid", "PIN must contain exactly six numeric digits."),
             "user.reauthentication_required" => (StatusCodes.Status403Forbidden, "Recent authentication required", "Sign in again before setting or resetting a password."),
             "user.validation_failed" => (StatusCodes.Status422UnprocessableEntity, "User validation failed", "The user request contains invalid data."),
             "auth.csrf_invalid" => (StatusCodes.Status400BadRequest, "Antiforgery validation failed", "The antiforgery token is missing or invalid."),

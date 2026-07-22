@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Kalm.Api.Configuration;
 using Kalm.Api.Features.Authorization;
+using Kalm.Api.Features.DeviceAdministration;
 using Kalm.Api.Transactions;
 using Kalm.Identity.Application.ManagementAuthentication;
 using Kalm.Identity;
@@ -23,7 +24,36 @@ public static class AuthenticationEndpoints
         group.MapPost("/logout", LogoutAsync).AllowAnonymous().WithName("ManagementLogout")
             .Produces(StatusCodes.Status204NoContent).ProducesProblem(StatusCodes.Status400BadRequest).ProducesProblem(StatusCodes.Status409Conflict);
         group.MapGet("/me", GetCurrentUser).AllowAnonymous().WithName("GetCurrentUser").Produces<CurrentUserResponse>();
+        group.MapPost("/pin-login", PinLoginAsync).AllowAnonymous().RequireRateLimiting(ManagementAuthenticationConstants.PinLoginRateLimitPolicy).WithName("EmployeePinLogin")
+            .Produces<PinLoginResponse>().ProducesProblem(401).ProducesProblem(429);
+        group.MapPost("/lock", LockAsync).RequireAuthorization().WithName("LockWorkstation").Produces(204).ProducesProblem(400).ProducesProblem(409);
         return endpoints;
+    }
+
+    private static async Task<IResult> PinLoginAsync(PinLoginRequest request, HttpContext context, DeviceCredentialResolver devices,
+        DeviceAuthenticationAuditTransactionCoordinator coordinator, CancellationToken cancellationToken)
+    {
+        try
+        {
+            DeviceRequestContext? device = await devices.ResolveAsync(context, cancellationToken);
+            if (device is null) return Problem(401, "auth.pin_invalid", "The device or employee credentials are invalid.");
+            DevicePinLoginResult result = await coordinator.LoginAsync(device, request.UserId, request.Pin, context.TraceIdentifier, cancellationToken);
+            if (!result.Succeeded || result.Session is null) return Problem(401, "auth.pin_invalid", "The device or employee credentials are invalid.");
+            var identity = new ClaimsIdentity(ManagementAuthenticationConstants.Scheme);
+            identity.AddClaim(new Claim(ManagementAuthenticationConstants.SessionIdClaim, result.SessionId.ToString("N")));
+            identity.AddClaim(new Claim(ManagementAuthenticationConstants.SchemeVersionClaim, ManagementAuthenticationConstants.SchemeVersion));
+            await context.SignInAsync(ManagementAuthenticationConstants.Scheme, new ClaimsPrincipal(identity), new AuthenticationProperties { AllowRefresh = false, IsPersistent = false, ExpiresUtc = result.Session.AbsoluteExpiresAtUtc });
+            return Results.Ok(new PinLoginResponse(result.Session.DisplayName, result.Session.PreferredLanguage));
+        }
+        finally { request.Pin = string.Empty; }
+    }
+
+    private static async Task<IResult> LockAsync(HttpContext context, [FromHeader(Name = "X-XSRF-TOKEN")] string? csrfHeader,
+        IAntiforgery antiforgery, DeviceAuthenticationAuditTransactionCoordinator coordinator, CancellationToken cancellationToken)
+    {
+        _ = csrfHeader; IResult? csrfFailure = await ValidateCsrfAsync(context, antiforgery); if (csrfFailure is not null) return csrfFailure;
+        ManagementSessionSnapshot? session = CurrentSession(context); if (session is null || !await coordinator.LockAsync(session.SessionId, context.TraceIdentifier, cancellationToken)) return Problem(409, "auth.session_changed", "The workstation session could not be locked.");
+        await context.SignOutAsync(ManagementAuthenticationConstants.Scheme); return Results.NoContent();
     }
 
     private static IResult GetCsrfAsync(HttpContext context, IAntiforgery antiforgery)

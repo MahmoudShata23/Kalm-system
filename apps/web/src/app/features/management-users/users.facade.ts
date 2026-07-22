@@ -106,6 +106,17 @@ export class UsersFacade {
     }
   }
 
+  async setPin(pin: string): Promise<UserDetail | null> {
+    const current = this.detailState();
+    if (!current) return null;
+    this.savingState.set(true); this.errorState.set(null); this.conflictState.set(null);
+    try {
+      const etag = await firstValueFrom(this.api.setPin(current.user.id, current.etag, pin));
+      this.detailState.set({ user: current.user, etag }); this.announcementState.set("pinSet"); return current.user;
+    } catch (error) { this.captureMutationError(error); return null; }
+    finally { this.savingState.set(false); }
+  }
+
   private async save(operation: () => Promise<VersionedUser>, announcement: string): Promise<UserDetail | null> {
     this.savingState.set(true);
     this.errorState.set(null);

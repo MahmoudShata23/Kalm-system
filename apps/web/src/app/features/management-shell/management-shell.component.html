@@ -17,6 +17,11 @@
       <a routerLink="/management/users" routerLinkActive="active">{{ usersCopy().nav }}</a>
     </nav>
   }
+  @if (canManageDevices()) {
+    <nav class="management-nav" [attr.aria-label]="devicesLabel()">
+      <a routerLink="/management/devices" routerLinkActive="active">{{ devicesLabel() }}</a>
+    </nav>
+  }
 
   <div class="scope" aria-live="polite">
     <h2>{{ copy().branchAccess }}</h2>
