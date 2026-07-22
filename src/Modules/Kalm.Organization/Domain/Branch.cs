@@ -45,14 +45,58 @@ public sealed class Branch
         return new Branch(id, organizationId, name, code, locale, timeZone, rollover, now);
     }
 
-    public void Update(OrganizationName name, BranchCode code, LocaleCode locale, TimeZoneId timeZone, BusinessDayRollover rollover, DateTimeOffset now)
+    public bool Update(OrganizationName name, BranchCode code, LocaleCode locale, TimeZoneId timeZone, BusinessDayRollover rollover, DateTimeOffset now)
     {
+        if (Name == name.Value
+            && Code == code.Value
+            && LocaleCode == locale.Value
+            && TimeZoneId == timeZone.Value
+            && BusinessDayRollover == rollover.Value)
+        {
+            return false;
+        }
+
         Name = name.Value;
         Code = code.Value;
         LocaleCode = locale.Value;
         TimeZoneId = timeZone.Value;
         BusinessDayRollover = rollover.Value;
         AdvanceVersion(now);
+        return true;
+    }
+
+    public bool Activate(DateTimeOffset now)
+    {
+        if (Status == BranchStatus.Active)
+        {
+            return false;
+        }
+
+        if (Status == BranchStatus.Archived)
+        {
+            throw new InvalidOperationException("Archived branches cannot be reactivated.");
+        }
+
+        Status = BranchStatus.Active;
+        AdvanceVersion(now);
+        return true;
+    }
+
+    public bool Deactivate(DateTimeOffset now)
+    {
+        if (Status == BranchStatus.Suspended)
+        {
+            return false;
+        }
+
+        if (Status == BranchStatus.Archived)
+        {
+            throw new InvalidOperationException("Archived branches cannot be deactivated.");
+        }
+
+        Status = BranchStatus.Suspended;
+        AdvanceVersion(now);
+        return true;
     }
 
     public void ChangeStatus(BranchStatus status, DateTimeOffset now)

@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Threading.RateLimiting;
 using Kalm.Api.Configuration;
 using Kalm.Api.Features.Authentication;
+using Kalm.Api.Features.BranchAdministration;
 using Kalm.Api.Features.Authorization;
 using Kalm.Api.Features.Health;
 using Kalm.Api.Features.DeviceAdministration;
@@ -84,6 +85,16 @@ builder.Services.AddOpenApi(options =>
             case "RevokeManagementDevice":
                 AddResponseHeader(operation, "204", "ETag", "Strong quoted revoked device aggregate version.");
                 break;
+            case "GetManagementBranch":
+            case "UpdateManagementBranch":
+            case "ActivateManagementBranch":
+            case "DeactivateManagementBranch":
+                AddResponseHeader(operation, "200", "ETag", "Strong quoted branch aggregate version required by later mutations.");
+                break;
+            case "CreateManagementBranch":
+                AddResponseHeader(operation, "201", "ETag", "Strong quoted branch aggregate version required by later mutations.");
+                AddResponseHeader(operation, "201", "Location", "Canonical URL of the created branch.");
+                break;
         }
 
         return Task.CompletedTask;
@@ -115,6 +126,8 @@ builder.Services.AddScoped<DeviceAdministrationAuditTransactionCoordinator>();
 builder.Services.AddScoped<DeviceAuthenticationAuditTransactionCoordinator>();
 builder.Services.AddScoped<PinAdministrationAuditTransactionCoordinator>();
 builder.Services.AddScoped<DeviceAdministrationQueries>();
+builder.Services.AddScoped<BranchAdministrationAuditTransactionCoordinator>();
+builder.Services.AddScoped<BranchAdministrationQueries>();
 builder.Services.AddScoped<DeviceAuthenticationQueries>();
 builder.Services.AddScoped<DeviceCredentialResolver>();
 builder.Services.AddScoped<ManagementCookieEvents>();
@@ -154,8 +167,10 @@ builder.Services.AddRateLimiter(options =>
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.OnRejected = async (rejection, cancellationToken) =>
     {
-        bool passwordEndpoint = rejection.HttpContext.Request.Path.Value?.EndsWith("/password", StringComparison.Ordinal) == true;
-        string code = passwordEndpoint ? "user.rate_limited" : "auth.rate_limited";
+        string? path = rejection.HttpContext.Request.Path.Value;
+        bool passwordEndpoint = path?.EndsWith("/password", StringComparison.Ordinal) == true;
+        bool branchEndpoint = path?.StartsWith("/api/v1/management/branches", StringComparison.Ordinal) == true;
+        string code = passwordEndpoint ? "user.rate_limited" : branchEndpoint ? "branch.rate_limited" : "auth.rate_limited";
         await Results.Problem(
             statusCode: StatusCodes.Status429TooManyRequests,
             title: "Too many requests",
@@ -202,6 +217,19 @@ builder.Services.AddRateLimiter(options =>
             AutoReplenishment = true
         });
     });
+    options.AddPolicy(BranchAdministrationEndpoints.WriteRateLimitPolicy, context =>
+    {
+        int permitLimit = context.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<ManagementAuthenticationOptions>>().Value.LoginRequestsPerMinute;
+        string source = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter($"branch-write:{source}", _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = permitLimit,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            AutoReplenishment = true
+        });
+    });
 });
 builder.Services.AddHealthChecks().AddCheck<PostgreSqlReadinessCheck>("postgresql");
 
@@ -233,6 +261,7 @@ app.MapAuthenticationEndpoints();
 app.MapRoleAdministrationEndpoints();
 app.MapUserAdministrationEndpoints();
 app.MapDeviceAdministrationEndpoints();
+app.MapBranchAdministrationEndpoints();
 
 app.Run();
 

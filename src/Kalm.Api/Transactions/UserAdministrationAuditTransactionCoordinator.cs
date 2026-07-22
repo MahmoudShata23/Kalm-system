@@ -88,6 +88,7 @@ public sealed class UserAdministrationAuditTransactionCoordinator
                     return UserOperationResult.Failure("user.roles_invalid");
                 }
 
+                await BranchMutationLock.AcquireAsync(organization, organizationId, validation.BranchIds, token);
                 Branch[]? branches = await ResolveActiveBranchesAsync(organization, organizationId, validation.BranchIds, token);
                 if (branches is null)
                 {
@@ -197,6 +198,7 @@ public sealed class UserAdministrationAuditTransactionCoordinator
                     return UserOperationResult.Failure("user.roles_invalid");
                 }
 
+                await BranchMutationLock.AcquireAsync(organization, organizationId, validation.BranchIds, token);
                 Branch[]? branches = await ResolveActiveBranchesAsync(organization, organizationId, validation.BranchIds, token);
                 if (branches is null)
                 {

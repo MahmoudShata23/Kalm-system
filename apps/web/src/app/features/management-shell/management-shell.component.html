@@ -22,6 +22,11 @@
       <a routerLink="/management/devices" routerLinkActive="active">{{ devicesLabel() }}</a>
     </nav>
   }
+  @if (canViewBranches()) {
+    <nav class="management-nav" [attr.aria-label]="branchesLabel()">
+      <a routerLink="/management/branches" routerLinkActive="active">{{ branchesLabel() }}</a>
+    </nav>
+  }
 
   <div class="scope" aria-live="polite">
     <h2>{{ copy().branchAccess }}</h2>

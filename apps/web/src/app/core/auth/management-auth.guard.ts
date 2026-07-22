@@ -1,7 +1,7 @@
 import { inject } from "@angular/core";
 import { CanActivateFn, Router } from "@angular/router";
 import { ManagementAuthService } from "./management-auth.service";
-import { DEVICES_MANAGE_PERMISSION, MANAGEMENT_ACCESS_PERMISSION, ROLES_MANAGE_PERMISSION, USERS_MANAGE_PERMISSION, USERS_VIEW_PERMISSION } from "./management-permissions";
+import { BRANCHES_MANAGE_PERMISSION, BRANCHES_VIEW_PERMISSION, DEVICES_MANAGE_PERMISSION, MANAGEMENT_ACCESS_PERMISSION, ROLES_MANAGE_PERMISSION, USERS_MANAGE_PERMISSION, USERS_VIEW_PERMISSION } from "./management-permissions";
 
 export const managementGuard: CanActivateFn = async (_route, state) => {
   const auth = inject(ManagementAuthService);
@@ -62,3 +62,5 @@ const userPermissionGuard = (permission: string): CanActivateFn => async () => {
 export const usersViewGuard = userPermissionGuard(USERS_VIEW_PERMISSION);
 export const usersManageGuard = userPermissionGuard(USERS_MANAGE_PERMISSION);
 export const devicesManageGuard = userPermissionGuard(DEVICES_MANAGE_PERMISSION);
+export const branchesViewGuard = userPermissionGuard(BRANCHES_VIEW_PERMISSION);
+export const branchesManageGuard = userPermissionGuard(BRANCHES_MANAGE_PERMISSION);
