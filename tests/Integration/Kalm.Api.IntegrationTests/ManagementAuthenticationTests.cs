@@ -428,6 +428,65 @@ public sealed class ManagementAuthenticationTests
         Assert.Equal(3, (await identity.Users.SingleAsync()).AuthorizationVersion);
     }
 
+    [Fact]
+    public async Task PasswordAdministration_ReturnsNoContentAndAuditsOnlySafeMetadata()
+    {
+        const string sensitiveEmail = "manager.private@kalm.local";
+        const string replacementPassword = "a replacement management phrase";
+        await using var database = await AuthDatabase.CreateAsync();
+        await database.MigrateAndSeedAsync();
+        await database.ProvisionAuthorizationAsync(
+            BranchAccessScope.AssignedBranches, secondBranch: false, grantUserManage: true);
+
+        Guid userId;
+        long version;
+        await using (IdentityDbContext identity = database.CreateIdentityContext())
+        {
+            User user = await identity.Users.SingleAsync();
+            user.UpdateProfile(
+                new Username(user.Username),
+                new EmailAddress(sensitiveEmail),
+                new DisplayName(user.DisplayName),
+                user.PreferredLanguage,
+                authorizationChanged: false,
+                InitialTime.AddMinutes(2));
+            await identity.SaveChangesAsync();
+            userId = user.Id;
+            version = user.Version;
+        }
+
+        using WebApplicationFactory<Program> factory = CreateFactory(
+            database.ConnectionString, new MutableClock(InitialTime.AddMinutes(2)), database.KeyPath);
+        using HttpClient client = CreateHttpsClient(factory);
+        (await LoginAsync(client, (await GetCsrfAsync(client)).Token, Password)).EnsureSuccessStatusCode();
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post, $"/api/v1/management/users/{userId:D}/password")
+        {
+            Content = JsonContent.Create(new { password = replacementPassword })
+        };
+        request.Headers.TryAddWithoutValidation("If-Match", $"\"{version}\"");
+        request.Headers.Add("X-XSRF-TOKEN", (await GetCsrfAsync(client)).Token);
+        using HttpResponseMessage response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(string.Empty, await response.Content.ReadAsStringAsync());
+        Assert.Equal($"\"{version + 1}\"", response.Headers.ETag?.Tag);
+
+        await using AuditDbContext audit = database.CreateAuditContext();
+        var passwordAudit = await audit.AuditEntries.SingleAsync(
+            entry => entry.EntityId == userId && entry.Action == Kalm.Audit.Domain.AuditAction.UserPasswordReset);
+        string auditPayload = (passwordAudit.BeforeJson ?? string.Empty) + (passwordAudit.AfterJson ?? string.Empty);
+        Assert.DoesNotContain(sensitiveEmail, auditPayload, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(replacementPassword, auditPayload, StringComparison.Ordinal);
+        Assert.DoesNotContain("hash", auditPayload, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("salt", auditPayload, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("sessionId", auditPayload, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("cookie", auditPayload, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ticket", auditPayload, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("request", auditPayload, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static WebApplicationFactory<Program> CreateFactory(
         string connectionString,
         MutableClock clock,
@@ -573,7 +632,10 @@ public sealed class ManagementAuthenticationTests
             await identity.SaveChangesAsync();
         }
 
-        public async Task<Guid> ProvisionAuthorizationAsync(BranchAccessScope scope, bool secondBranch)
+        public async Task<Guid> ProvisionAuthorizationAsync(
+            BranchAccessScope scope,
+            bool secondBranch,
+            bool grantUserManage = false)
         {
             await using var identity = CreateIdentityContext();
             await using var organization = CreateOrganizationContext();
@@ -597,7 +659,9 @@ public sealed class ManagementAuthenticationTests
             var role = Role.Create(Guid.NewGuid(), user.OrganizationId, new RoleName("Any display name"), null, InitialTime);
             identity.Roles.Add(role);
             Permission[] permissions = await identity.Permissions
-                .Where(permission => permission.Code == PermissionCodes.ManagementAccess || permission.Code == PermissionCodes.UsersView)
+                .Where(permission => permission.Code == PermissionCodes.ManagementAccess
+                    || permission.Code == PermissionCodes.UsersView
+                    || (grantUserManage && permission.Code == PermissionCodes.UsersManage))
                 .ToArrayAsync();
             foreach (Permission permission in permissions)
             {

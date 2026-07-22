@@ -2,7 +2,7 @@
 
 Kalm is a modular monolith cafe POS and operations system for Kalm Specialty Coffee.
 
-Milestone 0 and Milestone 1A Slices 1-4 are implemented. Slice 4 adds protected organization-scoped role administration, complete permission replacement, ETag concurrency, database-safe management-access protection, trusted CLI recovery, and a bilingual Roles experience. PIN login, devices, user administration/assignments, and later business modules remain deferred.
+Milestone 0 and Milestone 1A Slices 1-5 are implemented. Slice 5 adds secure employee provisioning, complete role and branch-access replacement, activation and suspension safeguards, trusted password setup/reset, ETag concurrency, session revocation, and a bilingual Users experience. PIN login, devices, and later business modules remain deferred.
 
 ## Required Toolchain
 
@@ -41,6 +41,8 @@ Management authentication endpoints:
 - `POST /api/v1/auth/logout`
 
 Role administration exposes only the six `/api/v1/management/roles` and `/api/v1/management/permissions` contracts documented in OpenAPI. Every one requires server-derived `management.access` and `roles.manage`. No user assignment, arbitrary permission, deletion, restore, or recovery HTTP endpoint is exposed.
+
+User administration is exposed only under `/api/v1/management/users`. Viewing requires `management.access` plus `users.view`; mutations require `management.access` plus `users.manage`. Password changes additionally require recent authentication, CSRF protection, and rate limiting. Passwords, hashes, session identifiers, organization identifiers, system-role keys, and authorization versions are never returned.
 
 Authentication uses an opaque server-session cookie. The Angular client keeps the CSRF request token only in memory and stores no authentication token in web storage. See `docs/operations/management-authentication.md` for deployment configuration and the non-public bootstrap procedure.
 

@@ -3,8 +3,9 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from "@angular/rou
 import { ButtonModule } from "primeng/button";
 import { ManagementAuthService } from "../../core/auth/management-auth.service";
 import { LanguageService } from "../../core/i18n/language.service";
-import { ROLES_MANAGE_PERMISSION } from "../../core/auth/management-permissions";
+import { ROLES_MANAGE_PERMISSION, USERS_VIEW_PERMISSION } from "../../core/auth/management-permissions";
 import { ROLES_COPY } from "../management-roles/management-roles.copy";
+import { USERS_COPY } from "../management-users/management-users.copy";
 
 @Component({
   selector: "kalm-management-shell",
@@ -23,7 +24,9 @@ export class ManagementShellComponent {
   protected readonly user = this.auth.user;
   protected readonly copy = computed(() => this.language.copy().managementShell);
   protected readonly rolesCopy = computed(() => ROLES_COPY[this.language.language()]);
+  protected readonly usersCopy = computed(() => USERS_COPY[this.language.language()]);
   protected readonly canManageRoles = computed(() => this.auth.hasPermission(ROLES_MANAGE_PERMISSION));
+  protected readonly canViewUsers = computed(() => this.auth.hasPermission(USERS_VIEW_PERMISSION));
   protected readonly scopeLabel = computed(() => this.user().branchAccess?.scope === "allOrganizationBranches"
     ? this.copy().allBranches
     : this.copy().assignedBranches);

@@ -30,6 +30,7 @@ public sealed class MilestoneOneAMigrationTests
     private const string AuditAuthorizationMigration = "20260720233502_ExtendAuthorizationAuditActions";
     private const string IdentityRoleAdministrationMigration = "20260721220000_AddRoleAdministrationSafeguards";
     private const string AuditRoleAdministrationMigration = "20260721220500_ExtendRoleAdministrationAuditActions";
+    private const string AuditUserAdministrationMigration = "20260722200000_ExtendUserAdministrationAuditActions";
 
     [Fact]
     public async Task CleanDatabase_AppliesAllContextsWithSeparateHistoryTablesAndAuditTrigger()
@@ -67,7 +68,7 @@ public sealed class MilestoneOneAMigrationTests
         await using var identity = CreateIdentityContext(database.ConnectionString);
         Assert.Equal([FoundationMigration], await platform.Database.GetAppliedMigrationsAsync());
         Assert.Equal([OrganizationMigration, OrganizationAuthorizationMigration], await organization.Database.GetAppliedMigrationsAsync());
-        Assert.Equal([AuditMigration, AuditAuthenticationMigration, AuditAuthorizationMigration, AuditRoleAdministrationMigration], await audit.Database.GetAppliedMigrationsAsync());
+        Assert.Equal([AuditMigration, AuditAuthenticationMigration, AuditAuthorizationMigration, AuditRoleAdministrationMigration, AuditUserAdministrationMigration], await audit.Database.GetAppliedMigrationsAsync());
         Assert.Equal([IdentityMigration, IdentityAuthorizationMigration, IdentityRoleAdministrationMigration], await identity.Database.GetAppliedMigrationsAsync());
         Assert.Equal(58, await identity.Permissions.CountAsync());
         Assert.Equal(
@@ -131,7 +132,7 @@ public sealed class MilestoneOneAMigrationTests
         Assert.Equal(auditId, await auditCheck.AuditEntries.Select(entry => entry.Id).SingleAsync());
         Assert.Equal([FoundationMigration], await platformCheck.Database.GetAppliedMigrationsAsync());
         Assert.Equal([OrganizationMigration, OrganizationAuthorizationMigration], await organizationCheck.Database.GetAppliedMigrationsAsync());
-        Assert.Equal([AuditMigration, AuditAuthenticationMigration, AuditAuthorizationMigration, AuditRoleAdministrationMigration], await auditCheck.Database.GetAppliedMigrationsAsync());
+        Assert.Equal([AuditMigration, AuditAuthenticationMigration, AuditAuthorizationMigration, AuditRoleAdministrationMigration, AuditUserAdministrationMigration], await auditCheck.Database.GetAppliedMigrationsAsync());
         Assert.Equal([IdentityMigration, IdentityAuthorizationMigration, IdentityRoleAdministrationMigration], await identityCheck.Database.GetAppliedMigrationsAsync());
     }
 
@@ -261,7 +262,49 @@ public sealed class MilestoneOneAMigrationTests
         Assert.Equal([IdentityMigration, IdentityAuthorizationMigration, IdentityRoleAdministrationMigration], await identityCheck.Database.GetAppliedMigrationsAsync());
         await using var auditCheck = CreateAuditContext(database.ConnectionString);
         Assert.Equal(auditId, await auditCheck.AuditEntries.Select(entry => entry.Id).SingleAsync());
-        Assert.Equal([AuditMigration, AuditAuthenticationMigration, AuditAuthorizationMigration, AuditRoleAdministrationMigration], await auditCheck.Database.GetAppliedMigrationsAsync());
+        Assert.Equal([AuditMigration, AuditAuthenticationMigration, AuditAuthorizationMigration, AuditRoleAdministrationMigration, AuditUserAdministrationMigration], await auditCheck.Database.GetAppliedMigrationsAsync());
+    }
+
+    [Fact]
+    public async Task ExactSliceFourDatabase_UpgradesWithoutChangingOperationalData()
+    {
+        await using var database = await SliceOneDatabase.CreateAsync();
+        Guid organizationId = Guid.NewGuid();
+        Guid userId = Guid.NewGuid();
+        Guid roleId = Guid.NewGuid();
+        Guid auditId = Guid.NewGuid();
+        DateTimeOffset now = new(2026, 7, 22, 12, 0, 0, TimeSpan.Zero);
+
+        await using (var identity = CreateIdentityContext(database.ConnectionString))
+        {
+            await identity.Database.MigrateAsync(IdentityRoleAdministrationMigration);
+            User user = User.Create(userId, organizationId, new Username("slice-four-user"), null, new DisplayName("Slice Four User"), "en", now);
+            Role role = Role.Create(roleId, organizationId, new RoleName("Slice Four Role"), null, now);
+            Permission permission = await identity.Permissions.SingleAsync(candidate => candidate.Code == PermissionCodes.ReportsSales);
+            identity.Users.Add(user);
+            identity.Roles.Add(role);
+            identity.RolePermissions.Add(RolePermission.Grant(Guid.NewGuid(), roleId, permission.Id, now));
+            identity.UserRoleAssignments.Add(UserRoleAssignment.Assign(Guid.NewGuid(), organizationId, userId, roleId, now));
+            await identity.SaveChangesAsync();
+        }
+
+        await using (var audit = CreateAuditContext(database.ConnectionString))
+        {
+            await audit.Database.MigrateAsync(AuditRoleAdministrationMigration);
+            audit.AuditEntries.Add(AuditEntry.Create(
+                auditId, now, organizationId, null, null, userId, AuditActorType.User, null,
+                AuditAction.RoleCreated, "Role", roleId, AuditResult.Succeeded, null,
+                "slice-four-upgrade", null, null, null, null));
+            await audit.SaveChangesAsync();
+            await audit.Database.MigrateAsync();
+        }
+
+        await using var identityCheck = CreateIdentityContext(database.ConnectionString);
+        Assert.Equal("Slice Four User", (await identityCheck.Users.SingleAsync(candidate => candidate.Id == userId)).DisplayName);
+        Assert.Equal(1, await identityCheck.UserRoleAssignments.CountAsync(assignment => assignment.UserId == userId && assignment.RevokedAtUtc == null));
+        await using var auditCheck = CreateAuditContext(database.ConnectionString);
+        Assert.Equal(auditId, await auditCheck.AuditEntries.Select(entry => entry.Id).SingleAsync());
+        Assert.Equal([AuditMigration, AuditAuthenticationMigration, AuditAuthorizationMigration, AuditRoleAdministrationMigration, AuditUserAdministrationMigration], await auditCheck.Database.GetAppliedMigrationsAsync());
     }
 
     [Fact]
@@ -288,14 +331,33 @@ public sealed class MilestoneOneAMigrationTests
             ["src/Modules/Kalm.Identity.Infrastructure/Migrations/20260721220000_AddRoleAdministrationSafeguards.cs"] = "cf79e47374f91ac81ef1ee1a2347e52611cee5c77e6b10f31c95ad2b62540189",
             ["src/Modules/Kalm.Identity.Infrastructure/Migrations/20260721220000_AddRoleAdministrationSafeguards.Designer.cs"] = "7c6efc66a98f8d00fe91d545cdfbfe554ca9f2130750d23bf198c52040216936",
             ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260721220500_ExtendRoleAdministrationAuditActions.cs"] = "738e324b63940b65e8d17b838882e3335daaac96fc3eee19b0fc330486d18a80",
-            ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260721220500_ExtendRoleAdministrationAuditActions.Designer.cs"] = "34654bcf048e2968b15addaed7b1cefa6caaebe7717dd5c6ba7f5b88c643bd37"
+            ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260721220500_ExtendRoleAdministrationAuditActions.Designer.cs"] = "34654bcf048e2968b15addaed7b1cefa6caaebe7717dd5c6ba7f5b88c643bd37",
+            ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260722200000_ExtendUserAdministrationAuditActions.cs"] = "8a1ca7785e715d997f9d6ca5839986e7d30846884c1058b44c18afc0c081d186",
+            ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260722200000_ExtendUserAdministrationAuditActions.Designer.cs"] = "df7b868d57ebaf65272ac0fd81b1f8fd68a4b1da26c2ad580fb4abd14e339971"
         };
         string root = FindRepositoryRoot();
         foreach ((string relativePath, string expectedHash) in expected)
         {
-            using FileStream stream = File.OpenRead(Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar)));
-            Assert.Equal(expectedHash, Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant());
+            byte[] repositoryBytes = File.ReadAllBytes(Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+            byte[] normalizedBytes = NormalizeLf(repositoryBytes);
+            Assert.Equal(expectedHash, Convert.ToHexString(SHA256.HashData(normalizedBytes)).ToLowerInvariant());
         }
+    }
+
+    private static byte[] NormalizeLf(byte[] bytes)
+    {
+        using var normalized = new MemoryStream(bytes.Length);
+        for (int index = 0; index < bytes.Length; index++)
+        {
+            if (bytes[index] == '\r' && index + 1 < bytes.Length && bytes[index + 1] == '\n')
+            {
+                continue;
+            }
+
+            normalized.WriteByte(bytes[index]);
+        }
+
+        return normalized.ToArray();
     }
 
     [Fact]

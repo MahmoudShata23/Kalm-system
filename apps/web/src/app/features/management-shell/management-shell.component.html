@@ -12,6 +12,11 @@
       <a routerLink="/management/roles" routerLinkActive="active">{{ rolesCopy().nav }}</a>
     </nav>
   }
+  @if (canViewUsers()) {
+    <nav class="management-nav" [attr.aria-label]="usersCopy().heading">
+      <a routerLink="/management/users" routerLinkActive="active">{{ usersCopy().nav }}</a>
+    </nav>
+  }
 
   <div class="scope" aria-live="polite">
     <h2>{{ copy().branchAccess }}</h2>

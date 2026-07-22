@@ -6,6 +6,8 @@ Milestone 1A Slice 3 adds trusted operational authorization provisioning. It sti
 
 Milestone 1A Slice 4 exposes protected role and permission-set administration only. It adds no user-assignment or recovery HTTP endpoint. All role endpoints require both `management.access` and `roles.manage`.
 
+Milestone 1A Slice 5 exposes protected user administration and trusted administrator password setup/reset. Users are created suspended, activation fails closed until credential, role, and branch requirements are complete, and suspension or password replacement revokes active sessions atomically. PINs, email reset links, self-service reset, deletion, impersonation, and recovery HTTP endpoints remain unavailable.
+
 ## Runtime configuration
 
 Supply production and staging values through deployment secrets or an approved secret manager:

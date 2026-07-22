@@ -1,5 +1,5 @@
 import { Routes } from "@angular/router";
-import { accessDeniedGuard, loginGuard, managementGuard, rolesManageGuard } from "../src/app/core/auth/management-auth.guard";
+import { accessDeniedGuard, loginGuard, managementGuard, rolesManageGuard, usersManageGuard, usersViewGuard } from "../src/app/core/auth/management-auth.guard";
 
 export const routes: Routes = [
   { path: "", pathMatch: "full", redirectTo: "management/login" },
@@ -43,6 +43,24 @@ export const routes: Routes = [
         canActivate: [rolesManageGuard],
         loadComponent: () => import("../src/app/features/management-roles/role-editor.component")
           .then(({ RoleEditorComponent }) => RoleEditorComponent)
+      },
+      {
+        path: "users",
+        canActivate: [usersViewGuard],
+        loadComponent: () => import("../src/app/features/management-users/users-list.component")
+          .then(({ UsersListComponent }) => UsersListComponent)
+      },
+      {
+        path: "users/new",
+        canActivate: [usersManageGuard],
+        loadComponent: () => import("../src/app/features/management-users/user-editor.component")
+          .then(({ UserEditorComponent }) => UserEditorComponent)
+      },
+      {
+        path: "users/:userId",
+        canActivate: [usersViewGuard],
+        loadComponent: () => import("../src/app/features/management-users/user-editor.component")
+          .then(({ UserEditorComponent }) => UserEditorComponent)
       }
     ]
   },

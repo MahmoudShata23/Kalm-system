@@ -63,8 +63,65 @@ public sealed class User
             throw new InvalidOperationException("Archived users cannot be activated.");
         }
 
-        Status = UserStatus.Active;
-        ActivatedAtUtc = now;
+        if (Status != UserStatus.Active)
+        {
+            Status = UserStatus.Active;
+            ActivatedAtUtc = now;
+            AdvanceVersion(now);
+        }
+    }
+
+    public bool UpdateProfile(
+        Username username,
+        EmailAddress? email,
+        DisplayName displayName,
+        string preferredLanguage,
+        bool authorizationChanged,
+        DateTimeOffset now)
+    {
+        EnsureUtc(now);
+        string normalizedLanguage = NormalizeLanguage(preferredLanguage);
+        bool profileChanged = !string.Equals(Username, username.Value, StringComparison.Ordinal)
+            || !string.Equals(Email, email?.Value, StringComparison.Ordinal)
+            || !string.Equals(DisplayName, displayName.Value, StringComparison.Ordinal)
+            || !string.Equals(PreferredLanguage, normalizedLanguage, StringComparison.Ordinal);
+        if (!profileChanged && !authorizationChanged)
+        {
+            return false;
+        }
+
+        Username = username.Value;
+        NormalizedUsername = username.NormalizedValue;
+        Email = email?.Value;
+        NormalizedEmail = email?.NormalizedValue;
+        DisplayName = displayName.Value;
+        PreferredLanguage = normalizedLanguage;
+        if (authorizationChanged)
+        {
+            AuthorizationVersion++;
+        }
+
+        AdvanceVersion(now);
+        return true;
+    }
+
+    public bool Suspend(DateTimeOffset now)
+    {
+        EnsureUtc(now);
+        if (Status != UserStatus.Active)
+        {
+            return false;
+        }
+
+        Status = UserStatus.Suspended;
+        AuthorizationVersion++;
+        AdvanceVersion(now);
+        return true;
+    }
+
+    public void RecordCredentialChange(DateTimeOffset now)
+    {
+        EnsureUtc(now);
         AdvanceVersion(now);
     }
 

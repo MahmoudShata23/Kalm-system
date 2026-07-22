@@ -1,7 +1,7 @@
 import { inject } from "@angular/core";
 import { CanActivateFn, Router } from "@angular/router";
 import { ManagementAuthService } from "./management-auth.service";
-import { MANAGEMENT_ACCESS_PERMISSION, ROLES_MANAGE_PERMISSION } from "./management-permissions";
+import { MANAGEMENT_ACCESS_PERMISSION, ROLES_MANAGE_PERMISSION, USERS_MANAGE_PERMISSION, USERS_VIEW_PERMISSION } from "./management-permissions";
 
 export const managementGuard: CanActivateFn = async (_route, state) => {
   const auth = inject(ManagementAuthService);
@@ -48,3 +48,16 @@ export const rolesManageGuard: CanActivateFn = async () => {
     ? true
     : router.createUrlTree(["/management/access-denied"]);
 };
+
+const userPermissionGuard = (permission: string): CanActivateFn => async () => {
+  const auth = inject(ManagementAuthService);
+  const router = inject(Router);
+  await auth.ensureInitialized();
+  if (!auth.user().isAuthenticated) return router.createUrlTree(["/management/login"]);
+  return auth.hasPermission(MANAGEMENT_ACCESS_PERMISSION) && auth.hasPermission(permission)
+    ? true
+    : router.createUrlTree(["/management/access-denied"]);
+};
+
+export const usersViewGuard = userPermissionGuard(USERS_VIEW_PERMISSION);
+export const usersManageGuard = userPermissionGuard(USERS_MANAGE_PERMISSION);

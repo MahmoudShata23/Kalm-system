@@ -1,0 +1,43 @@
+<section class="users" aria-labelledby="users-heading">
+  <header class="title-row">
+    <div><h2 id="users-heading">{{ copy().heading }}</h2><p>{{ copy().supporting }}</p></div>
+    @if (canManage()) {
+      <a pButton routerLink="/management/users/new" class="create-link"><span class="pi pi-plus" aria-hidden="true"></span> {{ copy().create }}</a>
+    }
+  </header>
+
+  <form class="filters" (ngSubmit)="refresh(true)" role="search">
+    <label><span>{{ copy().search }}</span>
+      <input pInputText name="user-search" type="search" maxlength="120" [placeholder]="copy().searchPlaceholder"
+        [ngModel]="search()" (ngModelChange)="search.set($event)" />
+    </label>
+    <label><span>{{ copy().status }}</span>
+      <select name="user-status" [ngModel]="status()" (ngModelChange)="changeStatus($event)">
+        <option value="all">{{ copy().all }}</option><option value="active">{{ copy().active }}</option>
+        <option value="suspended">{{ copy().suspended }}</option><option value="archived">{{ copy().archived }}</option>
+      </select>
+    </label>
+    <p-button type="submit" icon="pi pi-search" [label]="copy().search" [loading]="loading()" />
+  </form>
+
+  <p class="live" aria-live="polite">@if (loading()) { {{ copy().loading }} }</p>
+  @if (errorCode()) {
+    <div class="state error" role="alert"><p>{{ copy().loadError }}</p>
+      <p-button type="button" icon="pi pi-refresh" [label]="copy().retry" (onClick)="refresh()" />
+    </div>
+  } @else if (!loading() && list()?.items?.length === 0) {
+    <div class="state" role="status">{{ copy().empty }}</div>
+  } @else if (list(); as result) {
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">{{ copy().username }}</th><th scope="col">{{ copy().displayName }}</th>
+        <th scope="col">{{ copy().status }}</th><th scope="col">{{ copy().roles }}</th><th scope="col"><span class="visually-hidden">{{ copy().actions }}</span></th></tr></thead>
+      <tbody>@for (user of result.items; track user.id) {
+        <tr><td><strong dir="auto">{{ user.username }}</strong><small dir="auto">{{ user.email }}</small></td>
+          <td>{{ user.displayName }}</td><td>{{ statusLabel(user.status) }}</td><td>{{ user.roleNames.join(", ") }}</td>
+          <td><a pButton [routerLink]="['/management/users', user.id]" class="edit-link">{{ copy().edit }}</a></td></tr>
+      }</tbody>
+    </table></div>
+    <footer class="paging"><p-button type="button" icon="pi pi-chevron-left" [label]="copy().previous" [disabled]="!canPrevious()" (onClick)="previous()" />
+      <span>{{ result.page }}</span><p-button type="button" icon="pi pi-chevron-right" iconPos="right" [label]="copy().next" [disabled]="!canNext()" (onClick)="next()" /></footer>
+  }
+</section>

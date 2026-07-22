@@ -76,6 +76,33 @@ public sealed class AuthorizationPolicyTests
     }
 
     [Fact]
+    public async Task UserAdministrationPolicies_SeparateViewAndManagePermissions()
+    {
+        Guid userId = Guid.NewGuid();
+        Guid organizationId = Guid.NewGuid();
+        var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+        var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("subject", userId.ToString("D"))], "test"));
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddOptions();
+        services.AddAuthorization(KalmPolicies.AddKalmAuthorization);
+        services.AddSingleton<IHttpContextAccessor>(accessor);
+        services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
+        await using ServiceProvider provider = services.BuildServiceProvider();
+        IAuthorizationService authorization = provider.GetRequiredService<IAuthorizationService>();
+
+        accessor.HttpContext.Items[ManagementAuthenticationConstants.SessionItemKey] = CreateSession(
+            userId, organizationId, [PermissionCodes.ManagementAccess, PermissionCodes.UsersView], null);
+        Assert.True((await authorization.AuthorizeAsync(principal, null, KalmPolicies.UserAdministrationView)).Succeeded);
+        Assert.False((await authorization.AuthorizeAsync(principal, null, KalmPolicies.UserAdministrationManage)).Succeeded);
+
+        accessor.HttpContext.Items[ManagementAuthenticationConstants.SessionItemKey] = CreateSession(
+            userId, organizationId, [PermissionCodes.ManagementAccess, PermissionCodes.UsersManage], null);
+        Assert.False((await authorization.AuthorizeAsync(principal, null, KalmPolicies.UserAdministrationView)).Succeeded);
+        Assert.True((await authorization.AuthorizeAsync(principal, null, KalmPolicies.UserAdministrationManage)).Succeeded);
+    }
+
+    [Fact]
     public async Task OperationalBranchHandler_RequiresMatchingOrganizationAndOperationalBranch()
     {
         Guid userId = Guid.NewGuid();

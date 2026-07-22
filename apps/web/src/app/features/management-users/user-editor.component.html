@@ -1,0 +1,71 @@
+<section class="editor" aria-labelledby="user-heading">
+  <header class="editor-header"><h2 id="user-heading">{{ isNew ? copy().newHeading : copy().editHeading }}</h2>
+    <a pButton routerLink="/management/users" class="back-link">{{ copy().cancel }}</a></header>
+  <p class="live" aria-live="polite">{{ announcement() }}</p>
+  @if (loading()) { <div class="state" role="status">{{ copy().loading }}</div> }
+  @else if (errorCode() && !conflictEtag()) { <div class="state error" role="alert"><p>{{ errorMessage() }}</p>
+    <p-button type="button" icon="pi pi-refresh" [label]="copy().retry" (onClick)="reloadLatest()" /></div> }
+  @else {
+    @if (detail()?.user?.status === "archived") { <div class="notice" role="note">{{ copy().readOnly }}</div> }
+    @if (conflictEtag()) { <div class="conflict" role="alert"><h3>{{ copy().conflictHeading }}</h3><p>{{ copy().conflictMessage }}</p>
+      <p-button type="button" icon="pi pi-refresh" [label]="copy().reloadLatest" (onClick)="reloadLatest()" /></div> }
+
+    <form [formGroup]="form" (ngSubmit)="save()" autocomplete="off">
+      <div class="profile-grid">
+        <label><span>{{ copy().username }}</span><input pInputText formControlName="username" maxlength="64" [readOnly]="readOnly()" autocomplete="off" /></label>
+        <label><span>{{ copy().displayName }}</span><input pInputText formControlName="displayName" maxlength="120" [readOnly]="readOnly()" /></label>
+        <label><span>{{ copy().email }}</span><input pInputText type="email" formControlName="email" maxlength="254" [readOnly]="readOnly()" autocomplete="off" /></label>
+        <label><span>{{ copy().preferredLanguage }}</span><select formControlName="preferredLanguage" [disabled]="readOnly()">
+          <option value="en">{{ copy().english }}</option><option value="ar">{{ copy().arabic }}</option></select></label>
+      </div>
+      @if (submitted() && (form.controls.username.invalid || form.controls.displayName.invalid || form.controls.email.invalid)) {
+        <p class="field-error" role="alert">{{ copy().required }}</p>
+      }
+
+      <fieldset><legend>{{ copy().roles }}</legend>
+        <div class="options-grid">@for (role of options()?.roles ?? []; track role.id) {
+          <label class="option"><input type="checkbox" [checked]="selectedRoleIds().has(role.id)" [disabled]="readOnly()"
+            (change)="toggleRole(role.id, $any($event.target).checked)" /><span>{{ role.name }}</span></label>
+        }</div>
+        @if (submitted() && selectedRoleIds().size === 0) { <p class="field-error" role="alert">{{ copy().roleRequired }}</p> }
+      </fieldset>
+
+      <fieldset><legend>{{ copy().branches }}</legend>
+        <div class="scope-options"><label class="option"><input type="radio" name="scope" value="assignedBranches"
+          [checked]="form.controls.branchAccessScope.value === 'assignedBranches'" [disabled]="readOnly()" (change)="changeScope('assignedBranches')" /> {{ copy().assignedBranches }}</label>
+          <label class="option"><input type="radio" name="scope" value="allOrganizationBranches"
+          [checked]="form.controls.branchAccessScope.value === 'allOrganizationBranches'" [disabled]="readOnly()" (change)="changeScope('allOrganizationBranches')" /> {{ copy().allBranches }}</label></div>
+        @if (form.controls.branchAccessScope.value === "assignedBranches") {
+          <div class="options-grid">@for (branch of options()?.branches ?? []; track branch.id) {
+            <label class="option"><input type="checkbox" [checked]="selectedBranchIds().has(branch.id)" [disabled]="readOnly()"
+              (change)="toggleBranch(branch.id, $any($event.target).checked)" /><span>{{ branch.name }} <small dir="ltr">{{ branch.code }}</small></span></label>
+          }</div>
+          @if (submitted() && branchSelectionInvalid()) { <p class="field-error" role="alert">{{ copy().branchRequired }}</p> }
+        }
+      </fieldset>
+
+      @if (isNew) { <label class="password-field"><span>{{ copy().initialPassword }}</span>
+        <input pInputText type="password" formControlName="initialPassword" minlength="15" maxlength="128" autocomplete="new-password" />
+        <small>{{ copy().initialPasswordHelp }}</small></label> }
+      @if (!readOnly()) { <p-button type="submit" icon="pi pi-check" [label]="saving() ? copy().saving : copy().save" [loading]="saving()" /> }
+    </form>
+
+    @if (!isNew && detail(); as current) {
+      <section class="credential" aria-labelledby="credential-heading"><h3 id="credential-heading">{{ copy().credential }}</h3>
+        <p>{{ current.user.credentialStatus === "active" ? copy().credentialActive : copy().credentialPending }}</p>
+        @if (!readOnly()) { <label class="password-field"><span>{{ copy().password }}</span>
+          <input pInputText type="password" [formControl]="password" minlength="15" maxlength="128" autocomplete="new-password" />
+          <small>{{ copy().passwordHelp }}</small></label>
+          <p-button type="button" icon="pi pi-key" [label]="copy().setPassword" [loading]="saving()" (onClick)="setPassword()" /> }
+      </section>
+      @if (!readOnly()) { <div class="lifecycle-actions">
+        @if (current.user.status === "suspended") { <p-button type="button" icon="pi pi-check-circle" [label]="copy().activate" [loading]="saving()" (onClick)="activate()" /> }
+        @if (current.user.status === "active") { <p-button type="button" severity="danger" icon="pi pi-ban" [label]="copy().suspend" (onClick)="suspendConfirmation.set(true)" /> }
+      </div> }
+    }
+    @if (suspendConfirmation()) { <section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="suspend-heading">
+      <h3 id="suspend-heading">{{ copy().suspendHeading }}</h3><p>{{ copy().suspendMessage }}</p><div>
+        <p-button type="button" severity="danger" [label]="copy().confirmSuspend" [loading]="saving()" (onClick)="suspend()" />
+        <p-button type="button" severity="secondary" [label]="copy().dismiss" (onClick)="suspendConfirmation.set(false)" /></div></section> }
+  }
+</section>
