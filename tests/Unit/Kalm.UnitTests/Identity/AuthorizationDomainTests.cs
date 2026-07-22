@@ -141,4 +141,40 @@ public sealed class AuthorizationDomainTests
         Assert.Equal(2, access.Version);
         Assert.Equal(2, assignment.Version);
     }
+
+    [Fact]
+    public void UserAdministrationUpdate_AdvancesAggregateAndAuthorizationVersionsOnce()
+    {
+        Guid userId = Guid.NewGuid();
+        var user = User.Create(userId, Guid.NewGuid(), new Username("employee"), null, new DisplayName("Employee"), "en", Now);
+
+        bool changed = user.UpdateProfile(
+            new Username("employee"),
+            null,
+            new DisplayName("Updated Employee"),
+            "ar",
+            authorizationChanged: true,
+            Now.AddMinutes(1));
+
+        Assert.True(changed);
+        Assert.Equal(2, user.Version);
+        Assert.Equal(2, user.AuthorizationVersion);
+        Assert.Equal("Updated Employee", user.DisplayName);
+        Assert.Equal("ar", user.PreferredLanguage);
+    }
+
+    [Fact]
+    public void UserAdministrationNoOp_KeepsVersionsStable()
+    {
+        var user = User.Create(
+            Guid.NewGuid(), Guid.NewGuid(), new Username("employee"), null, new DisplayName("Employee"), "en", Now);
+
+        bool changed = user.UpdateProfile(
+            new Username("employee"), null, new DisplayName("Employee"), "en",
+            authorizationChanged: false, Now.AddMinutes(1));
+
+        Assert.False(changed);
+        Assert.Equal(1, user.Version);
+        Assert.Equal(1, user.AuthorizationVersion);
+    }
 }

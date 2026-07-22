@@ -2,7 +2,7 @@ import { TestBed } from "@angular/core/testing";
 import { ActivatedRouteSnapshot, Router, RouterStateSnapshot } from "@angular/router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ManagementAuthService } from "./management-auth.service";
-import { accessDeniedGuard, loginGuard, managementGuard, rolesManageGuard } from "./management-auth.guard";
+import { accessDeniedGuard, loginGuard, managementGuard, rolesManageGuard, usersManageGuard, usersViewGuard } from "./management-auth.guard";
 
 describe("management authorization guards", () => {
   const createUrlTree = vi.fn((commands: string[]) => ({ redirect: commands[0] }));
@@ -81,5 +81,18 @@ describe("management authorization guards", () => {
       {} as ActivatedRouteSnapshot,
       { url: "/management/roles" } as RouterStateSnapshot));
     expect(allowed).toBe(true);
+  });
+
+  it("separates users.view navigation from users.manage navigation", async () => {
+    auth.user.mockReturnValue({ isAuthenticated: true });
+    auth.hasPermission.mockImplementation((permission: string) => permission === "management.access" || permission === "users.view");
+
+    const view = await TestBed.runInInjectionContext(() => usersViewGuard(
+      {} as ActivatedRouteSnapshot, { url: "/management/users" } as RouterStateSnapshot));
+    const manage = await TestBed.runInInjectionContext(() => usersManageGuard(
+      {} as ActivatedRouteSnapshot, { url: "/management/users/new" } as RouterStateSnapshot));
+
+    expect(view).toBe(true);
+    expect(manage).toEqual({ redirect: "/management/access-denied" });
   });
 });
