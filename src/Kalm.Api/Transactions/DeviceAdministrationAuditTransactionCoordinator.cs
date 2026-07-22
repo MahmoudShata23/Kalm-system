@@ -26,6 +26,7 @@ public sealed class DeviceAdministrationAuditTransactionCoordinator
         => ExecuteAsync(organizationId, actorId, correlationId, async (organization, identity, audit, now, ct) =>
         {
             if (!DeviceAdministrationQueries.TryType(request.Type, out DeviceType type)) return DeviceOperationResult.Failure("device.validation_failed");
+            await BranchMutationLock.AcquireAsync(organization, organizationId, [request.BranchId], ct);
             bool branchValid = await organization.Branches.AnyAsync(branch => branch.Id == request.BranchId && branch.OrganizationId == organizationId && branch.Status == BranchStatus.Active, ct);
             if (!branchValid) return DeviceOperationResult.Failure("device.branch_invalid");
             Device device;
@@ -44,6 +45,7 @@ public sealed class DeviceAdministrationAuditTransactionCoordinator
             if (device is null) return DeviceOperationResult.Failure("device.not_found");
             if (device.Version != expectedVersion) return DeviceOperationResult.Failure("device.concurrency_conflict", device.Version);
             if (!DeviceAdministrationQueries.TryType(request.Type, out DeviceType type)) return DeviceOperationResult.Failure("device.validation_failed");
+            await BranchMutationLock.AcquireAsync(organization, organizationId, [request.BranchId], ct);
             bool branchValid = await organization.Branches.AnyAsync(branch => branch.Id == request.BranchId && branch.OrganizationId == organizationId && branch.Status == BranchStatus.Active, ct);
             if (!branchValid) return DeviceOperationResult.Failure("device.branch_invalid");
             long beforeVersion = device.Version;

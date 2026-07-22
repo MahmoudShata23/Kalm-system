@@ -49,6 +49,36 @@ public sealed class OpenApiContractTests : IClassFixture<WebApplicationFactory<P
         Assert.Equal(committedSnapshot, snapshot);
     }
 
+    [Fact]
+    public async Task BranchAdministration_ExposesExactlyTheApprovedSixRoutes()
+    {
+        using var client = _factory.CreateClient();
+        using var response = await client.GetAsync("/openapi/v1.json", CancellationToken.None);
+        response.EnsureSuccessStatusCode();
+        await using var content = await response.Content.ReadAsStreamAsync(CancellationToken.None);
+        using var document = await JsonDocument.ParseAsync(content, cancellationToken: CancellationToken.None);
+        string[] paths = document.RootElement.GetProperty("paths").EnumerateObject()
+            .Select(path => path.Name)
+            .Where(path => path.StartsWith("/api/v1/management/branches", StringComparison.Ordinal))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            [
+                "/api/v1/management/branches",
+                "/api/v1/management/branches/{branchId}",
+                "/api/v1/management/branches/{branchId}/activate",
+                "/api/v1/management/branches/{branchId}/deactivate"
+            ],
+            paths);
+        JsonElement branches = document.RootElement.GetProperty("paths").GetProperty("/api/v1/management/branches");
+        Assert.True(branches.TryGetProperty("get", out _));
+        Assert.True(branches.TryGetProperty("post", out _));
+        JsonElement detail = document.RootElement.GetProperty("paths").GetProperty("/api/v1/management/branches/{branchId}");
+        Assert.True(detail.TryGetProperty("get", out _));
+        Assert.True(detail.TryGetProperty("put", out _));
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

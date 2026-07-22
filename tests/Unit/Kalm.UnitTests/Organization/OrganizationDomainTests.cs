@@ -84,4 +84,18 @@ public sealed class OrganizationDomainTests
         Assert.Equal(2, branch.Version);
         Assert.Equal(BranchStatus.Active, branch.Status);
     }
+
+    [Fact]
+    public void BranchUpdate_NoOpKeepsVersionAndLifecycleIsExplicit()
+    {
+        var branch = Branch.Create(Guid.NewGuid(), Guid.NewGuid(), new OrganizationName("Cairo", 120), new BranchCode("CAI-01"), new LocaleCode("ar-EG"), new TimeZoneId("Africa/Cairo"), BusinessDayRollover.Parse("04:00"), Now);
+
+        Assert.False(branch.Update(new OrganizationName("Cairo", 120), new BranchCode("cai-01"), new LocaleCode("ar-EG"), new TimeZoneId("Africa/Cairo"), BusinessDayRollover.Parse("04:00"), Now.AddMinutes(1)));
+        Assert.Equal(1, branch.Version);
+        Assert.True(branch.Activate(Now.AddMinutes(2)));
+        Assert.False(branch.Activate(Now.AddMinutes(3)));
+        Assert.True(branch.Deactivate(Now.AddMinutes(4)));
+        Assert.False(branch.Deactivate(Now.AddMinutes(5)));
+        Assert.Equal(3, branch.Version);
+    }
 }

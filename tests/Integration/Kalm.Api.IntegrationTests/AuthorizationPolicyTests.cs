@@ -103,6 +103,37 @@ public sealed class AuthorizationPolicyTests
     }
 
     [Fact]
+    public async Task BranchAdministrationPolicies_RequireManagementAccessAndSeparateViewFromManage()
+    {
+        Guid userId = Guid.NewGuid();
+        Guid organizationId = Guid.NewGuid();
+        var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+        var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("subject", userId.ToString("D"))], "test"));
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddOptions();
+        services.AddAuthorization(KalmPolicies.AddKalmAuthorization);
+        services.AddSingleton<IHttpContextAccessor>(accessor);
+        services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
+        await using ServiceProvider provider = services.BuildServiceProvider();
+        IAuthorizationService authorization = provider.GetRequiredService<IAuthorizationService>();
+
+        accessor.HttpContext.Items[ManagementAuthenticationConstants.SessionItemKey] = CreateSession(
+            userId, organizationId, [PermissionCodes.BranchesView], null);
+        Assert.False((await authorization.AuthorizeAsync(principal, null, KalmPolicies.BranchAdministrationView)).Succeeded);
+
+        accessor.HttpContext.Items[ManagementAuthenticationConstants.SessionItemKey] = CreateSession(
+            userId, organizationId, [PermissionCodes.ManagementAccess, PermissionCodes.BranchesView], null);
+        Assert.True((await authorization.AuthorizeAsync(principal, null, KalmPolicies.BranchAdministrationView)).Succeeded);
+        Assert.False((await authorization.AuthorizeAsync(principal, null, KalmPolicies.BranchAdministrationManage)).Succeeded);
+
+        accessor.HttpContext.Items[ManagementAuthenticationConstants.SessionItemKey] = CreateSession(
+            userId, organizationId, [PermissionCodes.ManagementAccess, PermissionCodes.BranchesManage], null);
+        Assert.True((await authorization.AuthorizeAsync(principal, null, KalmPolicies.BranchAdministrationManage)).Succeeded);
+        Assert.False((await authorization.AuthorizeAsync(principal, null, KalmPolicies.BranchAdministrationView)).Succeeded);
+    }
+
+    [Fact]
     public async Task OperationalBranchHandler_RequiresMatchingOrganizationAndOperationalBranch()
     {
         Guid userId = Guid.NewGuid();

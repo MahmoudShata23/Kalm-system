@@ -1,5 +1,5 @@
 import { Routes } from "@angular/router";
-import { accessDeniedGuard, devicesManageGuard, loginGuard, managementGuard, rolesManageGuard, usersManageGuard, usersViewGuard } from "../src/app/core/auth/management-auth.guard";
+import { accessDeniedGuard, branchesManageGuard, branchesViewGuard, devicesManageGuard, loginGuard, managementGuard, rolesManageGuard, usersManageGuard, usersViewGuard } from "../src/app/core/auth/management-auth.guard";
 
 export const routes: Routes = [
   { path: "", pathMatch: "full", redirectTo: "management/login" },
@@ -65,6 +65,24 @@ export const routes: Routes = [
         canActivate: [usersViewGuard],
         loadComponent: () => import("../src/app/features/management-users/user-editor.component")
           .then(({ UserEditorComponent }) => UserEditorComponent)
+      },
+      {
+        path: "branches",
+        canActivate: [branchesViewGuard],
+        loadComponent: () => import("../src/app/features/management-branches/branches-list.component")
+          .then(({ BranchesListComponent }) => BranchesListComponent)
+      },
+      {
+        path: "branches/new",
+        canActivate: [branchesManageGuard],
+        loadComponent: () => import("../src/app/features/management-branches/branch-editor.component")
+          .then(({ BranchEditorComponent }) => BranchEditorComponent)
+      },
+      {
+        path: "branches/:branchId",
+        canActivate: [branchesViewGuard],
+        loadComponent: () => import("../src/app/features/management-branches/branch-editor.component")
+          .then(({ BranchEditorComponent }) => BranchEditorComponent)
       },
       {
         path: "devices",
