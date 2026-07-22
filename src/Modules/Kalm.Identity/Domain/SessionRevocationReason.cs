@@ -6,5 +6,9 @@ public enum SessionRevocationReason
     UserSuspended,
     CredentialChanged,
     IdleExpired,
-    AbsoluteExpired
+    AbsoluteExpired,
+    DeviceRevoked,
+    DeviceRepaired,
+    PinChanged,
+    WorkstationLocked
 }

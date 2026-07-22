@@ -1,5 +1,5 @@
 import { Routes } from "@angular/router";
-import { accessDeniedGuard, loginGuard, managementGuard, rolesManageGuard, usersManageGuard, usersViewGuard } from "./core/auth/management-auth.guard";
+import { accessDeniedGuard, devicesManageGuard, loginGuard, managementGuard, rolesManageGuard, usersManageGuard, usersViewGuard } from "./core/auth/management-auth.guard";
 
 export const routes: Routes = [
   { path: "", pathMatch: "full", redirectTo: "management/login" },
@@ -15,6 +15,10 @@ export const routes: Routes = [
     loadComponent: () => import("./features/management-auth/access-denied.component")
       .then(({ AccessDeniedComponent }) => AccessDeniedComponent)
   },
+  { path: "device/pair", data: { mode: "pair" }, loadComponent: () => import("./features/device-auth/workstation.component").then(({ WorkstationComponent }) => WorkstationComponent) },
+  { path: "workstation/login", data: { mode: "login" }, loadComponent: () => import("./features/device-auth/workstation.component").then(({ WorkstationComponent }) => WorkstationComponent) },
+  { path: "workstation/locked", data: { mode: "locked" }, loadComponent: () => import("./features/device-auth/workstation.component").then(({ WorkstationComponent }) => WorkstationComponent) },
+  { path: "workstation", data: { mode: "ready" }, loadComponent: () => import("./features/device-auth/workstation.component").then(({ WorkstationComponent }) => WorkstationComponent) },
   {
     path: "management",
     canActivate: [managementGuard],
@@ -61,6 +65,21 @@ export const routes: Routes = [
         canActivate: [usersViewGuard],
         loadComponent: () => import("./features/management-users/user-editor.component")
           .then(({ UserEditorComponent }) => UserEditorComponent)
+      },
+      {
+        path: "devices",
+        canActivate: [devicesManageGuard],
+        loadComponent: () => import("./features/management-devices/devices-list.component").then(({ DevicesListComponent }) => DevicesListComponent)
+      },
+      {
+        path: "devices/new",
+        canActivate: [devicesManageGuard],
+        loadComponent: () => import("./features/management-devices/device-editor.component").then(({ DeviceEditorComponent }) => DeviceEditorComponent)
+      },
+      {
+        path: "devices/:deviceId",
+        canActivate: [devicesManageGuard],
+        loadComponent: () => import("./features/management-devices/device-editor.component").then(({ DeviceEditorComponent }) => DeviceEditorComponent)
       }
     ]
   },

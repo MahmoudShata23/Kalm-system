@@ -67,6 +67,15 @@ export class UsersApi {
     }));
   }
 
+  setPin(userId: string, etag: string, pin: string): Observable<string> {
+    return this.http.post<void>(`${this.baseUrl}/${userId}/pin`, { pin }, { observe: "response", headers: this.ifMatch(etag) })
+      .pipe(map(response => {
+        const nextEtag = response.headers.get("ETag");
+        if (!nextEtag) throw new Error("PIN response did not include its authoritative ETag.");
+        return nextEtag;
+      }));
+  }
+
   private ifMatch(etag: string): HttpHeaders {
     return new HttpHeaders({ "If-Match": etag });
   }

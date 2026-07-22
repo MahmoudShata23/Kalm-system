@@ -50,6 +50,21 @@ public sealed class IdentitySecurityTests
     }
 
     [Fact]
+    public void PinHasher_UsesPurposeSeparatedRandomSaltAndFixedTimeVerification()
+    {
+        var hasher = new Pbkdf2PinHasher(Options.Create(new PasswordHashingOptions { Iterations = PasswordHashingOptions.MinimumIterations }));
+        string first = hasher.Hash("123456");
+        string second = hasher.Hash("123456");
+
+        Assert.StartsWith("$kalm$pin-pbkdf2-sha512$v=1$i=220000$s=", first, StringComparison.Ordinal);
+        Assert.NotEqual(first, second);
+        Assert.True(hasher.Verify("123456", first));
+        Assert.False(hasher.Verify("654321", first));
+        Assert.Throws<ArgumentException>(() => hasher.Hash("12345"));
+        Assert.Throws<ArgumentException>(() => hasher.Hash("abcdef"));
+    }
+
+    [Fact]
     public void Fingerprint_IsKeyedVersionedAndNotPlainSha256()
     {
         byte[] firstKey = Enumerable.Range(1, 32).Select(value => (byte)value).ToArray();

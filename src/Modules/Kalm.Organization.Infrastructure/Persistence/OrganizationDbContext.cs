@@ -15,6 +15,9 @@ public sealed class OrganizationDbContext : DbContext
     public DbSet<Branch> Branches => Set<Branch>();
     public DbSet<UserBranchAccess> UserBranchAccesses => Set<UserBranchAccess>();
     public DbSet<UserBranchAssignment> UserBranchAssignments => Set<UserBranchAssignment>();
+    public DbSet<Device> Devices => Set<Device>();
+    public DbSet<DevicePairingChallenge> DevicePairingChallenges => Set<DevicePairingChallenge>();
+    public DbSet<DeviceCredential> DeviceCredentials => Set<DeviceCredential>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -87,6 +90,60 @@ public sealed class OrganizationDbContext : DbContext
             builder.HasIndex(assignment => new { assignment.AccessId, assignment.BranchId }).IsUnique().HasFilter("revoked_at_utc is null").HasDatabaseName("ux_user_branch_assignments_active");
             builder.HasOne<UserBranchAccess>().WithMany().HasForeignKey(assignment => new { assignment.AccessId, assignment.OrganizationId }).HasPrincipalKey(access => new { access.Id, access.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
             builder.HasOne<Branch>().WithMany().HasForeignKey(assignment => new { assignment.BranchId, assignment.OrganizationId }).HasPrincipalKey(branch => new { branch.Id, branch.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Device>(builder =>
+        {
+            builder.ToTable("devices", table => table.HasCheckConstraint("ck_devices_status", "status in ('PendingPairing', 'Active', 'Revoked')"));
+            builder.HasKey(device => device.Id);
+            builder.Property(device => device.Id).HasColumnName("id");
+            builder.Property(device => device.OrganizationId).HasColumnName("organization_id").IsRequired();
+            builder.Property(device => device.BranchId).HasColumnName("branch_id").IsRequired();
+            builder.Property(device => device.Name).HasColumnName("name").HasMaxLength(120).IsRequired();
+            builder.Property(device => device.Type).HasColumnName("type").HasConversion<string>().HasMaxLength(30).IsRequired();
+            builder.Property(device => device.Platform).HasColumnName("platform").HasMaxLength(120);
+            builder.Property(device => device.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(30).IsRequired();
+            builder.Property(device => device.SecurityVersion).HasColumnName("security_version").IsRequired();
+            builder.Property(device => device.Version).HasColumnName("version").IsConcurrencyToken().IsRequired();
+            builder.Property(device => device.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamptz").IsRequired();
+            builder.Property(device => device.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamptz").IsRequired();
+            builder.Property(device => device.PairedAtUtc).HasColumnName("paired_at_utc").HasColumnType("timestamptz");
+            builder.Property(device => device.LastSeenAtUtc).HasColumnName("last_seen_at_utc").HasColumnType("timestamptz");
+            builder.Property(device => device.RevokedAtUtc).HasColumnName("revoked_at_utc").HasColumnType("timestamptz");
+            builder.HasIndex(device => new { device.OrganizationId, device.Status, device.Name, device.Id }).HasDatabaseName("ix_devices_organization_status_name_id");
+            builder.HasAlternateKey(device => new { device.Id, device.OrganizationId }).HasName("ak_devices_id_organization_id");
+            builder.HasOne<Branch>().WithMany().HasForeignKey(device => new { device.BranchId, device.OrganizationId }).HasPrincipalKey(branch => new { branch.Id, branch.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<DevicePairingChallenge>(builder =>
+        {
+            builder.ToTable("device_pairing_challenges", table => table.HasCheckConstraint("ck_device_pairing_challenges_expiry", "created_at_utc < expires_at_utc"));
+            builder.HasKey(challenge => challenge.Id);
+            builder.Property(challenge => challenge.Id).HasColumnName("id");
+            builder.Property(challenge => challenge.DeviceId).HasColumnName("device_id").IsRequired();
+            builder.Property(challenge => challenge.ChallengeHash).HasColumnName("challenge_hash").HasMaxLength(128).IsRequired();
+            builder.Property(challenge => challenge.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamptz").IsRequired();
+            builder.Property(challenge => challenge.ExpiresAtUtc).HasColumnName("expires_at_utc").HasColumnType("timestamptz").IsRequired();
+            builder.Property(challenge => challenge.ConsumedAtUtc).HasColumnName("consumed_at_utc").HasColumnType("timestamptz");
+            builder.Property(challenge => challenge.InvalidatedAtUtc).HasColumnName("invalidated_at_utc").HasColumnType("timestamptz");
+            builder.HasIndex(challenge => challenge.ChallengeHash).IsUnique().HasDatabaseName("ux_device_pairing_challenges_hash");
+            builder.HasIndex(challenge => new { challenge.DeviceId, challenge.ExpiresAtUtc }).HasDatabaseName("ix_device_pairing_challenges_device_expiry");
+            builder.HasOne<Device>().WithMany().HasForeignKey(challenge => challenge.DeviceId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<DeviceCredential>(builder =>
+        {
+            builder.ToTable("device_credentials");
+            builder.HasKey(credential => credential.Id);
+            builder.Property(credential => credential.Id).HasColumnName("id");
+            builder.Property(credential => credential.DeviceId).HasColumnName("device_id").IsRequired();
+            builder.Property(credential => credential.CredentialHash).HasColumnName("credential_hash").HasMaxLength(128).IsRequired();
+            builder.Property(credential => credential.SecurityVersion).HasColumnName("security_version").IsRequired();
+            builder.Property(credential => credential.IssuedAtUtc).HasColumnName("issued_at_utc").HasColumnType("timestamptz").IsRequired();
+            builder.Property(credential => credential.RevokedAtUtc).HasColumnName("revoked_at_utc").HasColumnType("timestamptz");
+            builder.HasIndex(credential => credential.CredentialHash).IsUnique().HasDatabaseName("ux_device_credentials_hash");
+            builder.HasIndex(credential => credential.DeviceId).IsUnique().HasFilter("revoked_at_utc is null").HasDatabaseName("ux_device_credentials_active");
+            builder.HasOne<Device>().WithMany().HasForeignKey(credential => credential.DeviceId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

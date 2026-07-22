@@ -5,6 +5,7 @@ using Kalm.Api.Configuration;
 using Kalm.Api.Features.Authentication;
 using Kalm.Api.Features.Authorization;
 using Kalm.Api.Features.Health;
+using Kalm.Api.Features.DeviceAdministration;
 using Kalm.Api.Features.RoleAdministration;
 using Kalm.Api.Features.UserAdministration;
 using Kalm.Api.Infrastructure.Correlation;
@@ -65,11 +66,23 @@ builder.Services.AddOpenApi(options =>
                 AddResponseHeader(operation, "200", "ETag", "Strong quoted user aggregate version required by later mutations.");
                 break;
             case "SetManagementUserPassword":
+            case "SetManagementUserPin":
                 AddResponseHeader(operation, "204", "ETag", "Strong quoted user aggregate version required by later mutations.");
                 break;
             case "CreateManagementUser":
                 AddResponseHeader(operation, "201", "ETag", "Strong quoted user aggregate version required by later mutations.");
                 AddResponseHeader(operation, "201", "Location", "Canonical URL of the created user.");
+                break;
+            case "GetManagementDevice":
+            case "UpdateManagementDevice":
+                AddResponseHeader(operation, "200", "ETag", "Strong quoted device aggregate version required by later mutations.");
+                break;
+            case "CreateManagementDevice":
+                AddResponseHeader(operation, "201", "ETag", "Strong quoted device aggregate version required by later mutations.");
+                AddResponseHeader(operation, "201", "Location", "Canonical URL of the created device.");
+                break;
+            case "RevokeManagementDevice":
+                AddResponseHeader(operation, "204", "ETag", "Strong quoted revoked device aggregate version.");
                 break;
         }
 
@@ -98,12 +111,19 @@ builder.Services.AddScoped<RoleAdministrationAuditTransactionCoordinator>();
 builder.Services.AddScoped<RoleAdministrationQueries>();
 builder.Services.AddScoped<UserAdministrationAuditTransactionCoordinator>();
 builder.Services.AddScoped<UserAdministrationQueries>();
+builder.Services.AddScoped<DeviceAdministrationAuditTransactionCoordinator>();
+builder.Services.AddScoped<DeviceAuthenticationAuditTransactionCoordinator>();
+builder.Services.AddScoped<PinAdministrationAuditTransactionCoordinator>();
+builder.Services.AddScoped<DeviceAdministrationQueries>();
+builder.Services.AddScoped<DeviceAuthenticationQueries>();
+builder.Services.AddScoped<DeviceCredentialResolver>();
 builder.Services.AddScoped<ManagementCookieEvents>();
 builder.Services.AddScoped<EffectiveAuthorizationResolver>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, OperationalBranchAuthorizationHandler>();
 builder.Services.AddSingleton<DummyPasswordHash>();
+builder.Services.AddSingleton<DummyPinHash>();
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddAntiforgery(options =>
 {
@@ -169,6 +189,19 @@ builder.Services.AddRateLimiter(options =>
             AutoReplenishment = true
         });
     });
+    options.AddPolicy(ManagementAuthenticationConstants.PinLoginRateLimitPolicy, context =>
+    {
+        int permitLimit = context.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<ManagementAuthenticationOptions>>().Value.LoginRequestsPerMinute;
+        string source = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter($"pin:{source}", _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = permitLimit,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            AutoReplenishment = true
+        });
+    });
 });
 builder.Services.AddHealthChecks().AddCheck<PostgreSqlReadinessCheck>("postgresql");
 
@@ -199,6 +232,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 app.MapAuthenticationEndpoints();
 app.MapRoleAdministrationEndpoints();
 app.MapUserAdministrationEndpoints();
+app.MapDeviceAdministrationEndpoints();
 
 app.Run();
 

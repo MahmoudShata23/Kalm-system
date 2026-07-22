@@ -1,7 +1,10 @@
 using Kalm.Api.Configuration;
+using Kalm.Api.Features.DeviceAdministration;
 using Kalm.Api.Features.Authorization;
 using Kalm.Identity.Domain;
 using Kalm.Identity.Infrastructure.Persistence;
+using Kalm.Organization.Domain;
+using Kalm.Organization.Infrastructure.Persistence;
 using Kalm.SharedKernel.Time;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -16,17 +19,20 @@ public sealed class ManagementCookieEvents : CookieAuthenticationEvents
     private readonly IClock _clock;
     private readonly ManagementAuthenticationOptions _options;
     private readonly EffectiveAuthorizationResolver _authorizationResolver;
+    private readonly OrganizationDbContext _organization;
 
     public ManagementCookieEvents(
         IdentityDbContext identity,
         IClock clock,
         IOptions<ManagementAuthenticationOptions> options,
-        EffectiveAuthorizationResolver authorizationResolver)
+        EffectiveAuthorizationResolver authorizationResolver,
+        OrganizationDbContext organization)
     {
         _identity = identity;
         _clock = clock;
         _options = options.Value;
         _authorizationResolver = authorizationResolver;
+        _organization = organization;
     }
 
     public override async Task ValidatePrincipal(CookieValidatePrincipalContext context)
@@ -48,7 +54,10 @@ public sealed class ManagementCookieEvents : CookieAuthenticationEvents
                 && now < session.AbsoluteExpiresAtUtc
                 && now >= session.LastActivityAtUtc
                 && _identity.Users.Any(user => user.Id == session.UserId && user.Status == UserStatus.Active)
-                && _identity.PasswordCredentials.Any(credential => credential.UserId == session.UserId && credential.Status == PasswordCredentialStatus.Active))
+                && ((session.DeviceId == null && _identity.PasswordCredentials.Any(credential => credential.UserId == session.UserId && credential.Status == PasswordCredentialStatus.Active))
+                    || (session.DeviceId != null
+                        && _identity.PinCredentials.Any(credential => credential.UserId == session.UserId && credential.Version == session.PinCredentialVersion)
+                        && _identity.Users.Any(user => user.Id == session.UserId && user.AuthorizationVersion == session.AuthorizationVersion))))
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(session => session.LastActivityAtUtc, now)
                 .SetProperty(session => session.InactivityExpiresAtUtc, session => session.AbsoluteExpiresAtUtc < requestedIdleExpiry ? session.AbsoluteExpiresAtUtc : requestedIdleExpiry)
@@ -76,8 +85,24 @@ public sealed class ManagementCookieEvents : CookieAuthenticationEvents
             return;
         }
 
+        var binding = await _identity.UserSessions.AsNoTracking().Where(session => session.Id == sessionId)
+            .Select(session => new { session.DeviceId, session.BranchId, session.DeviceSecurityVersion }).SingleAsync(context.HttpContext.RequestAborted);
+        if (binding.DeviceId is not null)
+        {
+            bool validDevice = await _organization.Devices.AsNoTracking().AnyAsync(device => device.Id == binding.DeviceId
+                && device.OrganizationId == snapshot.OrganizationId && device.BranchId == binding.BranchId
+                && device.SecurityVersion == binding.DeviceSecurityVersion && device.Status == DeviceStatus.Active
+                && _organization.Branches.Any(branch => branch.Id == device.BranchId && branch.OrganizationId == device.OrganizationId && branch.Status == BranchStatus.Active), context.HttpContext.RequestAborted);
+            if (!validDevice) { DeviceCredentialResolver.ClearCookie(context.HttpContext); context.RejectPrincipal(); return; }
+        }
+
         EffectiveAuthorizationSnapshot authorization = await _authorizationResolver.ResolveAsync(
             snapshot.UserId, snapshot.OrganizationId, context.HttpContext.RequestAborted);
+        if (binding.BranchId is not null && authorization.BranchAccess?.OperationalBranchIds.Contains(binding.BranchId.Value) != true)
+        {
+            context.RejectPrincipal();
+            return;
+        }
         context.HttpContext.Items[ManagementAuthenticationConstants.SessionItemKey] = snapshot with { Authorization = authorization };
         context.ShouldRenew = false;
     }

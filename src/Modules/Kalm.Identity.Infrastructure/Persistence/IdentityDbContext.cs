@@ -18,6 +18,8 @@ public sealed class IdentityDbContext : DbContext
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<UserRoleAssignment> UserRoleAssignments => Set<UserRoleAssignment>();
+    public DbSet<PinCredential> PinCredentials => Set<PinCredential>();
+    public DbSet<PinLoginAttempt> PinLoginAttempts => Set<PinLoginAttempt>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -85,6 +87,11 @@ public sealed class IdentityDbContext : DbContext
             builder.HasKey(session => session.Id);
             builder.Property(session => session.Id).HasColumnName("id");
             builder.Property(session => session.UserId).HasColumnName("user_id").IsRequired();
+            builder.Property(session => session.DeviceId).HasColumnName("device_id");
+            builder.Property(session => session.BranchId).HasColumnName("branch_id");
+            builder.Property(session => session.DeviceSecurityVersion).HasColumnName("device_security_version");
+            builder.Property(session => session.PinCredentialVersion).HasColumnName("pin_credential_version");
+            builder.Property(session => session.AuthorizationVersion).HasColumnName("authorization_version").IsRequired();
             builder.Property(session => session.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamptz").IsRequired();
             builder.Property(session => session.LastActivityAtUtc).HasColumnName("last_activity_at_utc").HasColumnType("timestamptz").IsRequired();
             builder.Property(session => session.InactivityExpiresAtUtc).HasColumnName("inactivity_expires_at_utc").HasColumnType("timestamptz").IsRequired();
@@ -95,6 +102,7 @@ public sealed class IdentityDbContext : DbContext
             builder.Property(session => session.Version).HasColumnName("version").IsConcurrencyToken().IsRequired();
             builder.HasIndex(session => new { session.UserId, session.RevokedAtUtc, session.AbsoluteExpiresAtUtc }).HasDatabaseName("ix_user_sessions_user_id_revoked_at_absolute_expires_at");
             builder.HasIndex(session => session.InactivityExpiresAtUtc).HasDatabaseName("ix_user_sessions_inactivity_expires_at_utc");
+            builder.HasIndex(session => new { session.DeviceId, session.RevokedAtUtc }).HasDatabaseName("ix_user_sessions_device_id_revoked_at_utc");
             builder.HasOne<User>().WithMany().HasForeignKey(session => session.UserId).OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -188,6 +196,34 @@ public sealed class IdentityDbContext : DbContext
             builder.HasIndex(assignment => new { assignment.RoleId, assignment.UserId }).HasFilter("revoked_at_utc is null").HasDatabaseName("ix_user_role_assignments_role_id_user_id_active");
             builder.HasOne<User>().WithMany().HasForeignKey(assignment => new { assignment.UserId, assignment.OrganizationId }).HasPrincipalKey(user => new { user.Id, user.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
             builder.HasOne<Role>().WithMany().HasForeignKey(assignment => new { assignment.RoleId, assignment.OrganizationId }).HasPrincipalKey(role => new { role.Id, role.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PinCredential>(builder =>
+        {
+            builder.ToTable("pin_credentials");
+            builder.HasKey(credential => credential.Id);
+            builder.Property(credential => credential.Id).HasColumnName("id");
+            builder.Property(credential => credential.UserId).HasColumnName("user_id").IsRequired();
+            builder.Property(credential => credential.EncodedHash).HasColumnName("encoded_hash").HasMaxLength(512).IsRequired();
+            builder.Property(credential => credential.Version).HasColumnName("version").IsConcurrencyToken().IsRequired();
+            builder.Property(credential => credential.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamptz").IsRequired();
+            builder.Property(credential => credential.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamptz").IsRequired();
+            builder.HasIndex(credential => credential.UserId).IsUnique().HasDatabaseName("ux_pin_credentials_user_id");
+            builder.HasOne<User>().WithOne().HasForeignKey<PinCredential>(credential => credential.UserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PinLoginAttempt>(builder =>
+        {
+            builder.ToTable("pin_login_attempts", table => table.HasCheckConstraint("ck_pin_login_attempts_outcome", "outcome in ('Succeeded', 'InvalidCredentials', 'Locked', 'Ineligible')"));
+            builder.HasKey(attempt => attempt.Id);
+            builder.Property(attempt => attempt.Id).HasColumnName("id");
+            builder.Property(attempt => attempt.DeviceId).HasColumnName("device_id").IsRequired();
+            builder.Property(attempt => attempt.UserId).HasColumnName("user_id");
+            builder.Property(attempt => attempt.Outcome).HasColumnName("outcome").HasConversion<string>().HasMaxLength(30).IsRequired();
+            builder.Property(attempt => attempt.OccurredAtUtc).HasColumnName("occurred_at_utc").HasColumnType("timestamptz").IsRequired();
+            builder.Property(attempt => attempt.CorrelationId).HasColumnName("correlation_id").HasMaxLength(128).IsRequired();
+            builder.HasIndex(attempt => new { attempt.DeviceId, attempt.UserId, attempt.OccurredAtUtc }).HasDatabaseName("ix_pin_login_attempts_device_user_occurred");
+            builder.HasOne<User>().WithMany().HasForeignKey(attempt => attempt.UserId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

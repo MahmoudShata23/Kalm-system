@@ -192,6 +192,89 @@ namespace Kalm.Identity.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Kalm.Identity.Domain.PinCredential", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("EncodedHash")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("encoded_hash");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_pin_credentials_user_id");
+
+                    b.ToTable("pin_credentials", "identity");
+                });
+
+            modelBuilder.Entity("Kalm.Identity.Domain.PinLoginAttempt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("correlation_id");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("device_id");
+
+                    b.Property<DateTimeOffset>("OccurredAtUtc")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("occurred_at_utc");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("outcome");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("DeviceId", "UserId", "OccurredAtUtc")
+                        .HasDatabaseName("ix_pin_login_attempts_device_user_occurred");
+
+                    b.ToTable("pin_login_attempts", "identity", t =>
+                        {
+                            t.HasCheckConstraint("ck_pin_login_attempts_outcome", "outcome in ('Succeeded', 'InvalidCredentials', 'Locked', 'Ineligible')");
+                        });
+                });
+
             modelBuilder.Entity("Kalm.Identity.Domain.Role", b =>
                 {
                     b.Property<Guid>("Id")
@@ -476,9 +559,25 @@ namespace Kalm.Identity.Infrastructure.Migrations
                         .HasColumnType("timestamptz")
                         .HasColumnName("absolute_expires_at_utc");
 
+                    b.Property<long>("AuthorizationVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("authorization_version");
+
+                    b.Property<Guid?>("BranchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("branch_id");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamptz")
                         .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("DeviceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("device_id");
+
+                    b.Property<int?>("DeviceSecurityVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("device_security_version");
 
                     b.Property<DateTimeOffset>("InactivityExpiresAtUtc")
                         .HasColumnType("timestamptz")
@@ -491,6 +590,10 @@ namespace Kalm.Identity.Infrastructure.Migrations
                     b.Property<DateTimeOffset>("LastReauthenticatedAtUtc")
                         .HasColumnType("timestamptz")
                         .HasColumnName("last_reauthenticated_at_utc");
+
+                    b.Property<long?>("PinCredentialVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("pin_credential_version");
 
                     b.Property<string>("RevocationReason")
                         .HasMaxLength(30)
@@ -514,6 +617,9 @@ namespace Kalm.Identity.Infrastructure.Migrations
 
                     b.HasIndex("InactivityExpiresAtUtc")
                         .HasDatabaseName("ix_user_sessions_inactivity_expires_at_utc");
+
+                    b.HasIndex("DeviceId", "RevokedAtUtc")
+                        .HasDatabaseName("ix_user_sessions_device_id_revoked_at_utc");
 
                     b.HasIndex("UserId", "RevokedAtUtc", "AbsoluteExpiresAtUtc")
                         .HasDatabaseName("ix_user_sessions_user_id_revoked_at_absolute_expires_at");
@@ -541,6 +647,23 @@ namespace Kalm.Identity.Infrastructure.Migrations
                         .HasForeignKey("Kalm.Identity.Domain.PasswordCredential", "UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Kalm.Identity.Domain.PinCredential", b =>
+                {
+                    b.HasOne("Kalm.Identity.Domain.User", null)
+                        .WithOne()
+                        .HasForeignKey("Kalm.Identity.Domain.PinCredential", "UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Kalm.Identity.Domain.PinLoginAttempt", b =>
+                {
+                    b.HasOne("Kalm.Identity.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Kalm.Identity.Domain.RolePermission", b =>

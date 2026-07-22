@@ -35,5 +35,16 @@ public enum AuditAction
     AuthorizationProvisioningCompleted,
     AuthorizationProvisioningFailed,
     ManagementAccessRevoked,
-    AuthorizationSessionsRevoked
+    AuthorizationSessionsRevoked,
+    DeviceRegistered,
+    DeviceUpdated,
+    DevicePairingChallengeCreated,
+    DevicePaired,
+    DeviceCredentialRotated,
+    DeviceRevoked,
+    UserPinSet,
+    UserPinReset,
+    PinLoginSucceeded,
+    PinLoginFailed,
+    WorkstationLocked
 }

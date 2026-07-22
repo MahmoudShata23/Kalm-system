@@ -9,6 +9,7 @@ public static class KalmPolicies
     public const string RoleAdministration = "Kalm.RoleAdministration";
     public const string UserAdministrationView = "Kalm.UserAdministrationView";
     public const string UserAdministrationManage = "Kalm.UserAdministrationManage";
+    public const string DeviceAdministration = "Kalm.DeviceAdministration";
 
     public static void AddKalmAuthorization(AuthorizationOptions options)
     {
@@ -37,6 +38,13 @@ public static class KalmPolicies
             policy.AddRequirements(
                 new PermissionRequirement(PermissionCodes.ManagementAccess),
                 new PermissionRequirement(PermissionCodes.UsersManage));
+        });
+        options.AddPolicy(DeviceAdministration, policy =>
+        {
+            policy.RequireAuthenticatedUser();
+            policy.AddRequirements(
+                new PermissionRequirement(PermissionCodes.ManagementAccess),
+                new PermissionRequirement(PermissionCodes.DevicesManage));
         });
     }
 }

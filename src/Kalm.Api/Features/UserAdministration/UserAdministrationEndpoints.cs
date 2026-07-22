@@ -96,6 +96,19 @@ public static class UserAdministrationEndpoints
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .ProducesProblem(StatusCodes.Status428PreconditionRequired)
             .ProducesProblem(StatusCodes.Status429TooManyRequests);
+        group.MapPost("/{userId:guid}/pin", SetPinAsync)
+            .RequireAuthorization(KalmPolicies.UserAdministrationManage)
+            .RequireRateLimiting(PasswordRateLimitPolicy)
+            .WithName("SetManagementUserPin")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .ProducesProblem(StatusCodes.Status428PreconditionRequired)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
         return endpoints;
     }
 
@@ -279,6 +292,25 @@ public static class UserAdministrationEndpoints
         => result.Succeeded
             ? VersionedOk(context, result.Detail!)
             : UserAdministrationProblemDetails.Create(result.ErrorCode!, result.CurrentVersion);
+
+    private static async Task<IResult> SetPinAsync(Guid userId, UserPinRequest request,
+        [FromHeader(Name = "If-Match")] string? ifMatch, [FromHeader(Name = "X-XSRF-TOKEN")] string? csrfHeader,
+        HttpContext context, IAntiforgery antiforgery, PinAdministrationAuditTransactionCoordinator coordinator,
+        IOptions<ManagementAuthenticationOptions> options, IClock clock, CancellationToken cancellationToken)
+    {
+        _ = csrfHeader;
+        try
+        {
+            IResult? precondition = ParseRequiredEtag(ifMatch, out long version); if (precondition is not null) return precondition;
+            if (!await IsCsrfValidAsync(context, antiforgery)) return UserAdministrationProblemDetails.Create("auth.csrf_invalid");
+            ManagementSessionSnapshot session = CurrentSession(context);
+            if (clock.UtcNow >= session.LastReauthenticatedAtUtc.AddMinutes(options.Value.ReauthenticationMinutes)) return UserAdministrationProblemDetails.Create("user.reauthentication_required");
+            PinAdministrationResult result = await coordinator.SetAsync(session.OrganizationId, session.UserId, userId, version, request.Pin, context.TraceIdentifier, cancellationToken);
+            if (!result.Succeeded) return UserAdministrationProblemDetails.Create(result.ErrorCode!, result.CurrentVersion);
+            SetVersionHeaders(context, result.Version); return Results.NoContent();
+        }
+        finally { request.Pin = string.Empty; }
+    }
 
     private static IResult VersionedOk(HttpContext context, UserVersionedDetail detail)
     {

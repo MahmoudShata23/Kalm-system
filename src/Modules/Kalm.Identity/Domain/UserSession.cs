@@ -6,11 +6,17 @@ public sealed class UserSession
     {
     }
 
-    private UserSession(Guid id, Guid userId, DateTimeOffset now, TimeSpan inactivityTimeout, TimeSpan absoluteLifetime)
+    private UserSession(Guid id, Guid userId, DateTimeOffset now, TimeSpan inactivityTimeout, TimeSpan absoluteLifetime,
+        Guid? deviceId, Guid? branchId, int? deviceSecurityVersion, long? pinCredentialVersion, long authorizationVersion)
     {
         EnsureUtc(now);
         Id = id;
         UserId = userId;
+        DeviceId = deviceId;
+        BranchId = branchId;
+        DeviceSecurityVersion = deviceSecurityVersion;
+        PinCredentialVersion = pinCredentialVersion;
+        AuthorizationVersion = authorizationVersion;
         CreatedAtUtc = now;
         LastActivityAtUtc = now;
         AbsoluteExpiresAtUtc = now.Add(absoluteLifetime);
@@ -21,6 +27,11 @@ public sealed class UserSession
 
     public Guid Id { get; private set; }
     public Guid UserId { get; private set; }
+    public Guid? DeviceId { get; private set; }
+    public Guid? BranchId { get; private set; }
+    public int? DeviceSecurityVersion { get; private set; }
+    public long? PinCredentialVersion { get; private set; }
+    public long AuthorizationVersion { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; private set; }
     public DateTimeOffset LastActivityAtUtc { get; private set; }
     public DateTimeOffset InactivityExpiresAtUtc { get; private set; }
@@ -37,7 +48,18 @@ public sealed class UserSession
             throw new ArgumentException("Session parameters are invalid.");
         }
 
-        return new UserSession(id, userId, now, inactivityTimeout, absoluteLifetime);
+        return new UserSession(id, userId, now, inactivityTimeout, absoluteLifetime, null, null, null, null, 0);
+    }
+
+    public static UserSession CreateDeviceBound(Guid id, Guid userId, Guid deviceId, Guid branchId,
+        int deviceSecurityVersion, long pinCredentialVersion, long authorizationVersion,
+        DateTimeOffset now, TimeSpan inactivityTimeout, TimeSpan absoluteLifetime)
+    {
+        if (userId == Guid.Empty || deviceId == Guid.Empty || branchId == Guid.Empty || deviceSecurityVersion < 1
+            || pinCredentialVersion < 1 || authorizationVersion < 1 || inactivityTimeout <= TimeSpan.Zero || absoluteLifetime <= inactivityTimeout)
+            throw new ArgumentException("Device-bound session parameters are invalid.");
+        return new UserSession(id, userId, now, inactivityTimeout, absoluteLifetime,
+            deviceId, branchId, deviceSecurityVersion, pinCredentialVersion, authorizationVersion);
     }
 
     public bool IsValid(DateTimeOffset now) => RevokedAtUtc is null && now < InactivityExpiresAtUtc && now < AbsoluteExpiresAtUtc;

@@ -1,4 +1,5 @@
 using Kalm.Identity.Application.ManagementAuthentication;
+using Kalm.Identity.Application.PinAuthentication;
 using Kalm.Identity.Infrastructure.Persistence;
 using Kalm.Identity.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
@@ -25,6 +26,7 @@ public static class IdentityInfrastructureServiceCollectionExtensions
         services.AddDbContext<IdentityDbContext>((provider, options) =>
             options.UseNpgsql(connectionString(provider), npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", "identity")));
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
+        services.AddSingleton<IPinHasher, Pbkdf2PinHasher>();
         services.AddSingleton<ISecurityFingerprintProvider, HmacSecurityFingerprintProvider>();
         return services;
     }

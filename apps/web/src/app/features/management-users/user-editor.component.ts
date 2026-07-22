@@ -35,6 +35,7 @@ export class UserEditorComponent implements OnInit {
     initialPassword: new FormControl("", { nonNullable: true, validators: [Validators.minLength(15), Validators.maxLength(128)] })
   });
   protected readonly password = new FormControl("", { nonNullable: true, validators: [Validators.required, Validators.minLength(15), Validators.maxLength(128)] });
+  protected readonly pin = new FormControl("", { nonNullable: true, validators: [Validators.required, Validators.pattern(/^\d{6}$/)] });
   protected readonly selectedRoleIds = signal<ReadonlySet<string>>(new Set());
   protected readonly selectedBranchIds = signal<ReadonlySet<string>>(new Set());
   protected readonly submitted = signal(false);
@@ -55,6 +56,7 @@ export class UserEditorComponent implements OnInit {
     if (value === "activated") return this.copy().activatedNotice;
     if (value === "suspended") return this.copy().suspendedNotice;
     if (value === "passwordSet") return this.copy().passwordNotice;
+    if (value === "pinSet") return this.copy().pinNotice;
     return "";
   });
 
@@ -104,6 +106,11 @@ export class UserEditorComponent implements OnInit {
     await this.facade.setPassword(this.password.value);
     this.password.setValue("");
     this.password.markAsUntouched();
+  }
+
+  protected async setPin(): Promise<void> {
+    this.pin.markAsTouched(); if (this.pin.invalid || this.readOnly()) return;
+    await this.facade.setPin(this.pin.value); this.pin.setValue(""); this.pin.markAsUntouched();
   }
 
   protected async activate(): Promise<void> { await this.facade.activate(); }
