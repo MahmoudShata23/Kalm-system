@@ -35,6 +35,7 @@ public sealed class MilestoneOneAMigrationTests
     private const string IdentityPinAndDeviceMigration = "20260722210500_AddPinAndDeviceSessions";
     private const string AuditDeviceAndPinMigration = "20260722211000_ExtendDeviceAndPinAuditActions";
     private const string AuditBranchAdministrationMigration = "20260722212000_ExtendBranchAdministrationAuditActions";
+    private const string AuditViewerMigration = "20260723010000_AddAuditViewerIndexes";
 
     [Fact]
     public async Task CleanDatabase_AppliesAllContextsWithSeparateHistoryTablesAndAuditTrigger()
@@ -63,6 +64,8 @@ public sealed class MilestoneOneAMigrationTests
         Assert.Equal("organization.ux_organizations_singleton_key", await ResolveRegClassAsync(database.ConnectionString, "organization.ux_organizations_singleton_key"));
         Assert.Equal("organization.ux_branches_organization_id_code", await ResolveRegClassAsync(database.ConnectionString, "organization.ux_branches_organization_id_code"));
         Assert.Equal("audit.ix_audit_logs_entity_type_entity_id_occurred_at_utc", await ResolveRegClassAsync(database.ConnectionString, "audit.ix_audit_logs_entity_type_entity_id_occurred_at_utc"));
+        Assert.Equal("audit.ix_audit_logs_organization_occurred_id", await ResolveRegClassAsync(database.ConnectionString, "audit.ix_audit_logs_organization_occurred_id"));
+        Assert.Equal("audit.ix_audit_logs_organization_branch_occurred_id", await ResolveRegClassAsync(database.ConnectionString, "audit.ix_audit_logs_organization_branch_occurred_id"));
         Assert.True(await ConstraintExistsAsync(database.ConnectionString, "organization", "organizations", "ck_organizations_singleton_key"));
         Assert.True(await ConstraintExistsAsync(database.ConnectionString, "audit", "audit_logs", "ck_audit_logs_action"));
 
@@ -72,7 +75,7 @@ public sealed class MilestoneOneAMigrationTests
         await using var identity = CreateIdentityContext(database.ConnectionString);
         Assert.Equal([FoundationMigration], await platform.Database.GetAppliedMigrationsAsync());
         Assert.Equal([OrganizationMigration, OrganizationAuthorizationMigration, OrganizationDeviceAdministrationMigration], await organization.Database.GetAppliedMigrationsAsync());
-        Assert.Equal([AuditMigration, AuditAuthenticationMigration, AuditAuthorizationMigration, AuditRoleAdministrationMigration, AuditUserAdministrationMigration, AuditDeviceAndPinMigration, AuditBranchAdministrationMigration], await audit.Database.GetAppliedMigrationsAsync());
+        Assert.Equal([AuditMigration, AuditAuthenticationMigration, AuditAuthorizationMigration, AuditRoleAdministrationMigration, AuditUserAdministrationMigration, AuditDeviceAndPinMigration, AuditBranchAdministrationMigration, AuditViewerMigration], await audit.Database.GetAppliedMigrationsAsync());
         Assert.Equal([IdentityMigration, IdentityAuthorizationMigration, IdentityRoleAdministrationMigration, IdentityPinAndDeviceMigration], await identity.Database.GetAppliedMigrationsAsync());
         Assert.Equal(58, await identity.Permissions.CountAsync());
         Assert.Equal(
@@ -141,7 +144,7 @@ public sealed class MilestoneOneAMigrationTests
         Assert.Equal(auditId, await auditCheck.AuditEntries.Select(entry => entry.Id).SingleAsync());
         Assert.Equal([FoundationMigration], await platformCheck.Database.GetAppliedMigrationsAsync());
         Assert.Equal([OrganizationMigration, OrganizationAuthorizationMigration, OrganizationDeviceAdministrationMigration], await organizationCheck.Database.GetAppliedMigrationsAsync());
-        Assert.Equal([AuditMigration, AuditAuthenticationMigration, AuditAuthorizationMigration, AuditRoleAdministrationMigration, AuditUserAdministrationMigration, AuditDeviceAndPinMigration, AuditBranchAdministrationMigration], await auditCheck.Database.GetAppliedMigrationsAsync());
+        Assert.Equal([AuditMigration, AuditAuthenticationMigration, AuditAuthorizationMigration, AuditRoleAdministrationMigration, AuditUserAdministrationMigration, AuditDeviceAndPinMigration, AuditBranchAdministrationMigration, AuditViewerMigration], await auditCheck.Database.GetAppliedMigrationsAsync());
         Assert.Equal([IdentityMigration, IdentityAuthorizationMigration, IdentityRoleAdministrationMigration, IdentityPinAndDeviceMigration], await identityCheck.Database.GetAppliedMigrationsAsync());
     }
 
@@ -271,7 +274,7 @@ public sealed class MilestoneOneAMigrationTests
         Assert.Equal([IdentityMigration, IdentityAuthorizationMigration, IdentityRoleAdministrationMigration, IdentityPinAndDeviceMigration], await identityCheck.Database.GetAppliedMigrationsAsync());
         await using var auditCheck = CreateAuditContext(database.ConnectionString);
         Assert.Equal(auditId, await auditCheck.AuditEntries.Select(entry => entry.Id).SingleAsync());
-        Assert.Equal([AuditMigration, AuditAuthenticationMigration, AuditAuthorizationMigration, AuditRoleAdministrationMigration, AuditUserAdministrationMigration, AuditDeviceAndPinMigration, AuditBranchAdministrationMigration], await auditCheck.Database.GetAppliedMigrationsAsync());
+        Assert.Equal([AuditMigration, AuditAuthenticationMigration, AuditAuthorizationMigration, AuditRoleAdministrationMigration, AuditUserAdministrationMigration, AuditDeviceAndPinMigration, AuditBranchAdministrationMigration, AuditViewerMigration], await auditCheck.Database.GetAppliedMigrationsAsync());
     }
 
     [Fact]
@@ -313,7 +316,7 @@ public sealed class MilestoneOneAMigrationTests
         Assert.Equal(1, await identityCheck.UserRoleAssignments.CountAsync(assignment => assignment.UserId == userId && assignment.RevokedAtUtc == null));
         await using var auditCheck = CreateAuditContext(database.ConnectionString);
         Assert.Equal(auditId, await auditCheck.AuditEntries.Select(entry => entry.Id).SingleAsync());
-        Assert.Equal([AuditMigration, AuditAuthenticationMigration, AuditAuthorizationMigration, AuditRoleAdministrationMigration, AuditUserAdministrationMigration, AuditDeviceAndPinMigration, AuditBranchAdministrationMigration], await auditCheck.Database.GetAppliedMigrationsAsync());
+        Assert.Equal([AuditMigration, AuditAuthenticationMigration, AuditAuthorizationMigration, AuditRoleAdministrationMigration, AuditUserAdministrationMigration, AuditDeviceAndPinMigration, AuditBranchAdministrationMigration, AuditViewerMigration], await auditCheck.Database.GetAppliedMigrationsAsync());
     }
 
     [Fact]
@@ -433,12 +436,57 @@ public sealed class MilestoneOneAMigrationTests
     }
 
     [Fact]
+    public async Task ExactSliceSevenAuditDatabase_UpgradesToSliceEightWithoutChangingAuditData()
+    {
+        await using var database = await SliceOneDatabase.CreateAsync();
+        Guid organizationId = Guid.NewGuid(), branchId = Guid.NewGuid(), auditId = Guid.NewGuid();
+        DateTimeOffset now = new(2026, 7, 23, 1, 0, 0, TimeSpan.Zero);
+        await using (var audit = CreateAuditContext(database.ConnectionString))
+        {
+            string[] migrations = audit.Database.GetMigrations().ToArray();
+            Assert.True(Array.IndexOf(migrations, AuditBranchAdministrationMigration) < Array.IndexOf(migrations, AuditViewerMigration));
+            await audit.Database.MigrateAsync(AuditBranchAdministrationMigration);
+            audit.AuditEntries.Add(AuditEntry.Create(
+                auditId, now, organizationId, branchId, null, null, AuditActorType.System, null,
+                AuditAction.BranchDeactivated, "Branch", branchId, AuditResult.Succeeded, null,
+                "slice-seven-to-eight", null, "{\"status\":\"suspended\"}", null, null));
+            await audit.SaveChangesAsync();
+            Assert.Null(await ResolveRegClassAsync(database.ConnectionString, "audit.ix_audit_logs_organization_occurred_id"));
+            await audit.Database.MigrateAsync(AuditViewerMigration);
+        }
+
+        await using var check = CreateAuditContext(database.ConnectionString);
+        Assert.Equal(auditId, await check.AuditEntries.Select(entry => entry.Id).SingleAsync());
+        Assert.Equal(
+            [AuditMigration, AuditAuthenticationMigration, AuditAuthorizationMigration, AuditRoleAdministrationMigration, AuditUserAdministrationMigration, AuditDeviceAndPinMigration, AuditBranchAdministrationMigration, AuditViewerMigration],
+            await check.Database.GetAppliedMigrationsAsync());
+        Assert.Equal("audit.ix_audit_logs_organization_occurred_id", await ResolveRegClassAsync(database.ConnectionString, "audit.ix_audit_logs_organization_occurred_id"));
+        Assert.Equal("audit.ix_audit_logs_organization_branch_occurred_id", await ResolveRegClassAsync(database.ConnectionString, "audit.ix_audit_logs_organization_branch_occurred_id"));
+    }
+
+    [Fact]
     public void SliceSevenMigrationFiles_RetainApprovedLfNormalizedByteHashes()
     {
         var expected = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260722212000_ExtendBranchAdministrationAuditActions.cs"] = "7fbeacee5446a0d242d0b763a85610881a35c9f91b04bfcca74819fb0b7fc4a9",
             ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260722212000_ExtendBranchAdministrationAuditActions.Designer.cs"] = "4eb2756b610dcb660f78392ce60b6e681f3cbc6d6733e74d85378cef5e141d05"
+        };
+        string root = FindRepositoryRoot();
+        foreach ((string relativePath, string expectedHash) in expected)
+        {
+            byte[] repositoryBytes = File.ReadAllBytes(Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+            Assert.Equal(expectedHash, Convert.ToHexString(SHA256.HashData(NormalizeLf(repositoryBytes))).ToLowerInvariant());
+        }
+    }
+
+    [Fact]
+    public void SliceEightMigrationFiles_RetainApprovedLfNormalizedByteHashes()
+    {
+        var expected = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260723010000_AddAuditViewerIndexes.cs"] = "43f4dc7e5d7fcf86fd2456ae8bec01894fa6d6ca9b8cd0735616f264f29566d9",
+            ["src/Modules/Kalm.Audit.Infrastructure/Migrations/20260723010000_AddAuditViewerIndexes.Designer.cs"] = "095279da647013d9c7cb45aa8bd26e3ee6da995f7c321050ed2dd2f4e390758e"
         };
         string root = FindRepositoryRoot();
         foreach ((string relativePath, string expectedHash) in expected)

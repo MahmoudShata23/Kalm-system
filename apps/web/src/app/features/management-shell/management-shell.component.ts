@@ -3,7 +3,7 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from "@angular/rou
 import { ButtonModule } from "primeng/button";
 import { ManagementAuthService } from "../../core/auth/management-auth.service";
 import { LanguageService } from "../../core/i18n/language.service";
-import { BRANCHES_VIEW_PERMISSION, DEVICES_MANAGE_PERMISSION, ROLES_MANAGE_PERMISSION, USERS_VIEW_PERMISSION } from "../../core/auth/management-permissions";
+import { AUDIT_VIEW_PERMISSION, BRANCHES_VIEW_PERMISSION, DEVICES_MANAGE_PERMISSION, ROLES_MANAGE_PERMISSION, USERS_VIEW_PERMISSION } from "../../core/auth/management-permissions";
 import { ROLES_COPY } from "../management-roles/management-roles.copy";
 import { USERS_COPY } from "../management-users/management-users.copy";
 
@@ -29,8 +29,10 @@ export class ManagementShellComponent {
   protected readonly canViewUsers = computed(() => this.auth.hasPermission(USERS_VIEW_PERMISSION));
   protected readonly canManageDevices = computed(() => this.auth.hasPermission(DEVICES_MANAGE_PERMISSION));
   protected readonly canViewBranches = computed(() => this.auth.hasPermission(BRANCHES_VIEW_PERMISSION));
+  protected readonly canViewAudit = computed(() => this.auth.hasPermission(AUDIT_VIEW_PERMISSION));
   protected readonly devicesLabel = computed(() => this.language.language() === "ar" ? "الأجهزة" : "Devices");
   protected readonly branchesLabel = computed(() => this.language.language() === "ar" ? "الفروع" : "Branches");
+  protected readonly auditLabel = computed(() => this.language.language() === "ar" ? "سجل التدقيق" : "Audit log");
   protected readonly scopeLabel = computed(() => this.user().branchAccess?.scope === "allOrganizationBranches"
     ? this.copy().allBranches
     : this.copy().assignedBranches);

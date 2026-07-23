@@ -1,5 +1,5 @@
 import { Routes } from "@angular/router";
-import { accessDeniedGuard, branchesManageGuard, branchesViewGuard, devicesManageGuard, loginGuard, managementGuard, rolesManageGuard, usersManageGuard, usersViewGuard } from "./core/auth/management-auth.guard";
+import { accessDeniedGuard, auditViewGuard, branchesManageGuard, branchesViewGuard, devicesManageGuard, loginGuard, managementGuard, rolesManageGuard, usersManageGuard, usersViewGuard } from "./core/auth/management-auth.guard";
 
 export const routes: Routes = [
   { path: "", pathMatch: "full", redirectTo: "management/login" },
@@ -95,6 +95,16 @@ export const routes: Routes = [
         path: "devices/:deviceId",
         canActivate: [devicesManageGuard],
         loadComponent: () => import("./features/management-devices/device-editor.component").then(({ DeviceEditorComponent }) => DeviceEditorComponent)
+      },
+      {
+        path: "audit-logs",
+        canActivate: [auditViewGuard],
+        loadComponent: () => import("./features/management-audit-logs/audit-logs-list.component").then(({ AuditLogsListComponent }) => AuditLogsListComponent)
+      },
+      {
+        path: "audit-logs/:auditLogId",
+        canActivate: [auditViewGuard],
+        loadComponent: () => import("./features/management-audit-logs/audit-log-detail.component").then(({ AuditLogDetailComponent }) => AuditLogDetailComponent)
       }
     ]
   },
