@@ -79,6 +79,23 @@ public sealed class OpenApiContractTests : IClassFixture<WebApplicationFactory<P
         Assert.True(detail.TryGetProperty("put", out _));
     }
 
+    [Fact]
+    public async Task AuditViewer_ExposesExactlyTheApprovedThreeReadOnlyEndpoints()
+    {
+        using var client = _factory.CreateClient();
+        using var response = await client.GetAsync("/openapi/v1.json", CancellationToken.None);
+        response.EnsureSuccessStatusCode();
+        await using var content = await response.Content.ReadAsStreamAsync(CancellationToken.None);
+        using var document = await JsonDocument.ParseAsync(content, cancellationToken: CancellationToken.None);
+        JsonProperty[] paths = document.RootElement.GetProperty("paths").EnumerateObject()
+            .Where(path => path.Name.StartsWith("/api/v1/management/audit-logs", StringComparison.Ordinal))
+            .OrderBy(path => path.Name, StringComparer.Ordinal).ToArray();
+        Assert.Equal(
+            ["/api/v1/management/audit-logs", "/api/v1/management/audit-logs/options", "/api/v1/management/audit-logs/{auditLogId}"],
+            paths.Select(path => path.Name));
+        Assert.All(paths, path => Assert.Equal(["get"], path.Value.EnumerateObject().Select(operation => operation.Name).ToArray()));
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

@@ -27,6 +27,11 @@
       <a routerLink="/management/branches" routerLinkActive="active">{{ branchesLabel() }}</a>
     </nav>
   }
+  @if (canViewAudit()) {
+    <nav class="management-nav" [attr.aria-label]="auditLabel()">
+      <a routerLink="/management/audit-logs" routerLinkActive="active">{{ auditLabel() }}</a>
+    </nav>
+  }
 
   <div class="scope" aria-live="polite">
     <h2>{{ copy().branchAccess }}</h2>

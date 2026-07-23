@@ -38,6 +38,12 @@ public sealed class AuditDbContext : DbContext
             builder.Property(entry => entry.NetworkIdentifier).HasColumnName("network_identifier").HasMaxLength(128);
             builder.Property(entry => entry.UserAgent).HasColumnName("user_agent").HasMaxLength(512);
             builder.HasIndex(entry => entry.OccurredAtUtc).HasDatabaseName("ix_audit_logs_occurred_at_utc");
+            builder.HasIndex(entry => new { entry.OrganizationId, entry.OccurredAtUtc, entry.Id })
+                .IsDescending(false, true, true)
+                .HasDatabaseName("ix_audit_logs_organization_occurred_id");
+            builder.HasIndex(entry => new { entry.OrganizationId, entry.BranchId, entry.OccurredAtUtc, entry.Id })
+                .IsDescending(false, false, true, true)
+                .HasDatabaseName("ix_audit_logs_organization_branch_occurred_id");
             builder.HasIndex(entry => new { entry.BranchId, entry.OccurredAtUtc }).HasDatabaseName("ix_audit_logs_branch_id_occurred_at_utc");
             builder.HasIndex(entry => new { entry.ActorId, entry.OccurredAtUtc }).HasDatabaseName("ix_audit_logs_actor_id_occurred_at_utc");
             builder.HasIndex(entry => new { entry.EntityType, entry.EntityId, entry.OccurredAtUtc }).HasDatabaseName("ix_audit_logs_entity_type_entity_id_occurred_at_utc");

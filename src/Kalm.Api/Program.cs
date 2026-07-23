@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Threading.RateLimiting;
 using Kalm.Api.Configuration;
 using Kalm.Api.Features.Authentication;
+using Kalm.Api.Features.AuditViewer;
 using Kalm.Api.Features.BranchAdministration;
 using Kalm.Api.Features.Authorization;
 using Kalm.Api.Features.Health;
@@ -128,6 +129,8 @@ builder.Services.AddScoped<PinAdministrationAuditTransactionCoordinator>();
 builder.Services.AddScoped<DeviceAdministrationQueries>();
 builder.Services.AddScoped<BranchAdministrationAuditTransactionCoordinator>();
 builder.Services.AddScoped<BranchAdministrationQueries>();
+builder.Services.AddScoped<AuditViewerQueries>();
+builder.Services.AddSingleton<AuditViewerCursorCodec>();
 builder.Services.AddScoped<DeviceAuthenticationQueries>();
 builder.Services.AddScoped<DeviceCredentialResolver>();
 builder.Services.AddScoped<ManagementCookieEvents>();
@@ -262,6 +265,7 @@ app.MapRoleAdministrationEndpoints();
 app.MapUserAdministrationEndpoints();
 app.MapDeviceAdministrationEndpoints();
 app.MapBranchAdministrationEndpoints();
+app.MapAuditViewerEndpoints();
 
 app.Run();
 
