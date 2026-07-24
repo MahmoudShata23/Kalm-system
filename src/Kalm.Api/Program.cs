@@ -5,6 +5,7 @@ using Kalm.Api.Configuration;
 using Kalm.Api.Features.Authentication;
 using Kalm.Api.Features.AuditViewer;
 using Kalm.Api.Features.BranchAdministration;
+using Kalm.Api.Features.CatalogAdministration;
 using Kalm.Api.Features.Authorization;
 using Kalm.Api.Features.Health;
 using Kalm.Api.Features.DeviceAdministration;
@@ -96,6 +97,32 @@ builder.Services.AddOpenApi(options =>
                 AddResponseHeader(operation, "201", "ETag", "Strong quoted branch aggregate version required by later mutations.");
                 AddResponseHeader(operation, "201", "Location", "Canonical URL of the created branch.");
                 break;
+            case "GetManagementCatalogCategory":
+            case "UpdateManagementCatalogCategory":
+            case "ActivateManagementCatalogCategory":
+            case "ArchiveManagementCatalogCategory":
+                AddResponseHeader(operation, "200", "ETag", "Strong quoted category aggregate version required by later mutations.");
+                break;
+            case "CreateManagementCatalogCategory":
+                AddResponseHeader(operation, "201", "ETag", "Strong quoted category aggregate version required by later mutations.");
+                AddResponseHeader(operation, "201", "Location", "Canonical URL of the created category.");
+                break;
+            case "ListManagementCatalogCategories":
+                AddResponseHeader(operation, "200", "ETag", "Strong category collection version required by atomic reordering.");
+                break;
+            case "ReorderManagementCatalogCategories":
+                AddResponseHeader(operation, "204", "ETag", "Strong category collection version after reordering.");
+                break;
+            case "GetManagementCatalogProduct":
+            case "UpdateManagementCatalogProduct":
+            case "ActivateManagementCatalogProduct":
+            case "ArchiveManagementCatalogProduct":
+                AddResponseHeader(operation, "200", "ETag", "Strong quoted product aggregate version required by later mutations.");
+                break;
+            case "CreateManagementCatalogProduct":
+                AddResponseHeader(operation, "201", "ETag", "Strong quoted product aggregate version required by later mutations.");
+                AddResponseHeader(operation, "201", "Location", "Canonical URL of the created product.");
+                break;
         }
 
         return Task.CompletedTask;
@@ -106,6 +133,7 @@ static string ResolveConnectionString(IServiceProvider provider)
     => provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<DatabaseOptions>>().Value.ConnectionString;
 builder.Services.AddOrganizationInfrastructure(ResolveConnectionString);
 builder.Services.AddAuditInfrastructure(ResolveConnectionString);
+builder.Services.AddCatalogInfrastructure(ResolveConnectionString);
 builder.Services.AddIdentityInfrastructure(builder.Configuration, ResolveConnectionString);
 builder.Services.AddOptions<ManagementAuthenticationOptions>()
     .Bind(builder.Configuration.GetSection(ManagementAuthenticationOptions.SectionName))
@@ -131,6 +159,8 @@ builder.Services.AddScoped<BranchAdministrationAuditTransactionCoordinator>();
 builder.Services.AddScoped<BranchAdministrationQueries>();
 builder.Services.AddScoped<AuditViewerQueries>();
 builder.Services.AddSingleton<AuditViewerCursorCodec>();
+builder.Services.AddScoped<CatalogAdministrationAuditTransactionCoordinator>();
+builder.Services.AddScoped<CatalogAdministrationQueries>();
 builder.Services.AddScoped<DeviceAuthenticationQueries>();
 builder.Services.AddScoped<DeviceCredentialResolver>();
 builder.Services.AddScoped<ManagementCookieEvents>();
@@ -173,7 +203,14 @@ builder.Services.AddRateLimiter(options =>
         string? path = rejection.HttpContext.Request.Path.Value;
         bool passwordEndpoint = path?.EndsWith("/password", StringComparison.Ordinal) == true;
         bool branchEndpoint = path?.StartsWith("/api/v1/management/branches", StringComparison.Ordinal) == true;
-        string code = passwordEndpoint ? "user.rate_limited" : branchEndpoint ? "branch.rate_limited" : "auth.rate_limited";
+        bool catalogEndpoint = path?.StartsWith("/api/v1/management/catalog", StringComparison.Ordinal) == true;
+        string code = passwordEndpoint
+            ? "user.rate_limited"
+            : branchEndpoint
+                ? "branch.rate_limited"
+                : catalogEndpoint
+                    ? "catalog.rate_limited"
+                    : "auth.rate_limited";
         await Results.Problem(
             statusCode: StatusCodes.Status429TooManyRequests,
             title: "Too many requests",
@@ -233,6 +270,19 @@ builder.Services.AddRateLimiter(options =>
             AutoReplenishment = true
         });
     });
+    options.AddPolicy(CatalogAdministrationEndpoints.WriteRateLimitPolicy, context =>
+    {
+        int permitLimit = context.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<ManagementAuthenticationOptions>>().Value.LoginRequestsPerMinute;
+        string source = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter($"catalog-write:{source}", _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = permitLimit,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            AutoReplenishment = true
+        });
+    });
 });
 builder.Services.AddHealthChecks().AddCheck<PostgreSqlReadinessCheck>("postgresql");
 
@@ -266,6 +316,7 @@ app.MapUserAdministrationEndpoints();
 app.MapDeviceAdministrationEndpoints();
 app.MapBranchAdministrationEndpoints();
 app.MapAuditViewerEndpoints();
+app.MapCatalogAdministrationEndpoints();
 
 app.Run();
 

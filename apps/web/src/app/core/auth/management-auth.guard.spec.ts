@@ -2,7 +2,7 @@ import { TestBed } from "@angular/core/testing";
 import { ActivatedRouteSnapshot, Router, RouterStateSnapshot } from "@angular/router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ManagementAuthService } from "./management-auth.service";
-import { accessDeniedGuard, loginGuard, managementGuard, rolesManageGuard, usersManageGuard, usersViewGuard } from "./management-auth.guard";
+import { accessDeniedGuard, catalogManageGuard, catalogViewGuard, loginGuard, managementGuard, rolesManageGuard, usersManageGuard, usersViewGuard } from "./management-auth.guard";
 
 describe("management authorization guards", () => {
   const createUrlTree = vi.fn((commands: string[]) => ({ redirect: commands[0] }));
@@ -92,6 +92,18 @@ describe("management authorization guards", () => {
     const manage = await TestBed.runInInjectionContext(() => usersManageGuard(
       {} as ActivatedRouteSnapshot, { url: "/management/users/new" } as RouterStateSnapshot));
 
+    expect(view).toBe(true);
+    expect(manage).toEqual({ redirect: "/management/access-denied" });
+  });
+
+  it("requires management.access plus the exact catalog view or manage permission", async () => {
+    auth.user.mockReturnValue({ isAuthenticated: true });
+    auth.hasPermission.mockImplementation((permission: string) =>
+      permission === "management.access" || permission === "catalog.view");
+    const view = await TestBed.runInInjectionContext(() => catalogViewGuard(
+      {} as ActivatedRouteSnapshot, { url: "/management/catalog/products" } as RouterStateSnapshot));
+    const manage = await TestBed.runInInjectionContext(() => catalogManageGuard(
+      {} as ActivatedRouteSnapshot, { url: "/management/catalog/products/new" } as RouterStateSnapshot));
     expect(view).toBe(true);
     expect(manage).toEqual({ redirect: "/management/access-denied" });
   });

@@ -11,7 +11,7 @@ export interface AuditSafeMetadata {
   registeredDeviceCount: number | null; activeDeviceCount: number | null;
   activeCredentialCount: number | null; activeSessionCount: number | null;
   activeUserAssignmentCount: number | null; activeRoleAssignmentCount: number | null;
-  sessionsRevokedCount: number | null; relatedUserId: string | null;
+  sessionsRevokedCount: number | null; affectedCount: number | null; relatedUserId: string | null;
   relatedBranchId: string | null; relatedDeviceId: string | null;
 }
 export interface AuditLogDetail extends AuditLogItem { reasonCode: string | null; metadata: AuditSafeMetadata | null; }

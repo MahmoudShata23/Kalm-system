@@ -16,7 +16,7 @@ public sealed class AuditViewerQueries(
 {
     private static readonly HashSet<string> SafeTargetTypes = new(StringComparer.Ordinal)
     {
-        "Authorization", "Branch", "Device", "Organization", "Role", "User"
+        "Authorization", "Branch", "Category", "Device", "Organization", "Product", "ProductVariant", "Role", "User"
     };
 
     public async Task<AuditLogListResponse> ListAsync(
@@ -233,6 +233,12 @@ public sealed class AuditViewerQueries(
     {
         string name = action.ToString();
         if (name.StartsWith("Branch", StringComparison.Ordinal) || name.StartsWith("Organization", StringComparison.Ordinal)) return "organization";
+        if (name.StartsWith("Category", StringComparison.Ordinal)
+            || name.StartsWith("Categories", StringComparison.Ordinal)
+            || name.StartsWith("Product", StringComparison.Ordinal)
+            || name.StartsWith("Variant", StringComparison.Ordinal)
+            || name.StartsWith("Variants", StringComparison.Ordinal)
+            || name.StartsWith("Catalog", StringComparison.Ordinal)) return "catalog";
         if (name.StartsWith("Device", StringComparison.Ordinal) || name.StartsWith("PinLogin", StringComparison.Ordinal) || name == nameof(AuditAction.WorkstationLocked)) return "devices";
         if (name.StartsWith("Role", StringComparison.Ordinal) || name.Contains("Authorization", StringComparison.Ordinal) || name.Contains("ManagementAccess", StringComparison.Ordinal) || name.StartsWith("SystemRole", StringComparison.Ordinal) || name.StartsWith("LastManagement", StringComparison.Ordinal)) return "authorization";
         if (name.StartsWith("User", StringComparison.Ordinal) || name.StartsWith("Password", StringComparison.Ordinal)) return "users";

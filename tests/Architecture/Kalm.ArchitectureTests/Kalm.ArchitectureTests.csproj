@@ -10,6 +10,8 @@
     <ProjectReference Include="..\..\..\src\Modules\Kalm.Organization.Infrastructure\Kalm.Organization.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Kalm.Audit\Kalm.Audit.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Kalm.Audit.Infrastructure\Kalm.Audit.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Kalm.Catalog\Kalm.Catalog.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Kalm.Catalog.Infrastructure\Kalm.Catalog.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

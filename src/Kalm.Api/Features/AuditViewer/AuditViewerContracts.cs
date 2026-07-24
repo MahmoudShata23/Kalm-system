@@ -54,6 +54,7 @@ public sealed record AuditSafeMetadataResponse(
     int? ActiveUserAssignmentCount,
     int? ActiveRoleAssignmentCount,
     int? SessionsRevokedCount,
+    int? AffectedCount,
     Guid? RelatedUserId,
     Guid? RelatedBranchId,
     Guid? RelatedDeviceId);

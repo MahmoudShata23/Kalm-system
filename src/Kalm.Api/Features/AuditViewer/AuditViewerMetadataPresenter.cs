@@ -9,6 +9,20 @@ internal static class AuditViewerMetadataPresenter
     {
         "name", "code", "localeCode", "timeZoneId", "businessDayRollover"
     };
+    private static readonly HashSet<string> CategoryFields = new(StringComparer.Ordinal)
+    {
+        "arabicName", "englishName", "displayOrder", "posColorToken", "iconCode"
+    };
+    private static readonly HashSet<string> ProductFields = new(StringComparer.Ordinal)
+    {
+        "categoryId", "arabicName", "englishName", "arabicDescription", "englishDescription",
+        "sku", "productType", "displayOrder"
+    };
+    private static readonly HashSet<string> VariantFields = new(StringComparer.Ordinal)
+    {
+        "arabicName", "englishName", "code", "barcode", "sizeCode",
+        "temperatureCode", "servingFormatCode", "displayOrder"
+    };
 
     public static AuditSafeMetadataResponse? Present(AuditEntry entry)
     {
@@ -24,6 +38,7 @@ internal static class AuditViewerMetadataPresenter
         int? activeAssignments = null;
         int? activeRoleAssignments = null;
         int? sessionsRevoked = null;
+        int? affectedCount = null;
         Guid? relatedUserId = null;
         Guid? relatedBranchId = null;
         Guid? relatedDeviceId = null;
@@ -32,6 +47,15 @@ internal static class AuditViewerMetadataPresenter
         {
             case AuditAction.BranchUpdated:
                 AddStringArray(after, "changedFields", BranchFields, changedFields);
+                break;
+            case AuditAction.CategoryUpdated:
+                AddStringArray(after, "changedFields", CategoryFields, changedFields);
+                break;
+            case AuditAction.ProductUpdated:
+                AddStringArray(after, "changedFields", ProductFields, changedFields);
+                break;
+            case AuditAction.VariantUpdated:
+                AddStringArray(after, "changedFields", VariantFields, changedFields);
                 break;
             case AuditAction.UserProfileChanged:
                 AddChangedProperties(before, after, ["username", "email", "displayName", "preferredLanguage"], changedFields);
@@ -64,7 +88,13 @@ internal static class AuditViewerMetadataPresenter
             or AuditAction.UserActivated
             or AuditAction.UserSuspended
             or AuditAction.RoleArchived
-            or AuditAction.DeviceRevoked)
+            or AuditAction.DeviceRevoked
+            or AuditAction.CategoryActivated
+            or AuditAction.CategoryArchived
+            or AuditAction.ProductActivated
+            or AuditAction.ProductArchived
+            or AuditAction.VariantActivated
+            or AuditAction.VariantArchived)
         {
             previousStatus = String(before, "status");
             newStatus = String(after, "status");
@@ -100,6 +130,16 @@ internal static class AuditViewerMetadataPresenter
             relatedBranchId = Identifier(after, "branchId");
         }
 
+        if (entry.Action is AuditAction.CategoriesReordered or AuditAction.VariantsReordered)
+        {
+            affectedCount = Integer(after, "affectedCount");
+        }
+
+        if (entry.Action == AuditAction.CatalogMutationRejected)
+        {
+            affectedCount = Integer(after, "activeProductCount");
+        }
+
         if (entry.Action is AuditAction.UserRoleAssigned
             or AuditAction.UserRoleRevoked
             or AuditAction.UserBranchAccessChanged)
@@ -112,10 +152,11 @@ internal static class AuditViewerMetadataPresenter
             && registeredDevices is null && activeDevices is null && activeCredentials is null
             && activeSessions is null && activeAssignments is null && activeRoleAssignments is null
             && sessionsRevoked is null && relatedUserId is null && relatedBranchId is null && relatedDeviceId is null;
+        empty = empty && affectedCount is null;
         return empty ? null : new AuditSafeMetadataResponse(
             changedFields.ToArray(), previousStatus, newStatus,
             registeredDevices, activeDevices, activeCredentials, activeSessions, activeAssignments,
-            activeRoleAssignments, sessionsRevoked, relatedUserId, relatedBranchId, relatedDeviceId);
+            activeRoleAssignments, sessionsRevoked, affectedCount, relatedUserId, relatedBranchId, relatedDeviceId);
     }
 
     private static JsonDocument? Parse(string? json)

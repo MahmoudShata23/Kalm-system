@@ -6,6 +6,8 @@ using Kalm.Organization;
 using Kalm.Organization.Infrastructure;
 using Kalm.Audit;
 using Kalm.Audit.Infrastructure;
+using Kalm.Catalog;
+using Kalm.Catalog.Infrastructure;
 using Kalm.SharedKernel.Errors;
 using Kalm.Api.Features.Authorization;
 using Kalm.Identity.Authorization;
@@ -52,6 +54,9 @@ public sealed class DependencyRulesTests
             typeof(OrganizationAssemblyMarker).Assembly,
             [.. forbidden, "Kalm.Identity"]);
         AssertNoReferences(typeof(AuditAssemblyMarker).Assembly, forbidden);
+        AssertNoReferences(
+            typeof(CatalogAssemblyMarker).Assembly,
+            [.. forbidden, "Kalm.Identity", "Kalm.Organization", "Kalm.Audit"]);
     }
 
     [Fact]
@@ -64,6 +69,9 @@ public sealed class DependencyRulesTests
             typeof(AuditInfrastructureAssemblyMarker).Assembly,
             ["Kalm.Identity.Infrastructure", "Kalm.Organization.Infrastructure"]);
         AssertNoReferences(typeof(IdentityInfrastructureAssemblyMarker).Assembly, ["Kalm.Organization.Infrastructure", "Kalm.Audit.Infrastructure"]);
+        AssertNoReferences(
+            typeof(CatalogInfrastructureAssemblyMarker).Assembly,
+            ["Kalm.Identity.Infrastructure", "Kalm.Organization.Infrastructure", "Kalm.Audit.Infrastructure", "Kalm.Api"]);
     }
 
     [Fact]

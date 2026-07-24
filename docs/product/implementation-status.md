@@ -2,11 +2,11 @@
 
 Last updated: 2026-07-23
 
-Milestone 1A Slice 8 implements the authorized minimal Audit Viewer, safe bounded keyset queries, explicit metadata allowlisting, bilingual management routes, the final additive Audit index migration, and the evidence-based Milestone 1A closure review. Slices 1 through 7 remain included and verified.
+Milestone 1B Slice 1 opens the Catalog bounded context with organization-scoped Categories, Products, and Variants; aggregate-safe lifecycle and ordering; bilingual management screens; and additive Catalog/Audit migrations. Milestone 1A remains complete and immutable.
 
 ## Current Milestone
 
-Milestone 1A - Identity, Organization, Branches, Devices, and Audit
+Milestone 1B - Catalog
 
 ## Requirement Checklist
 
@@ -31,16 +31,19 @@ Milestone 1A - Identity, Organization, Branches, Devices, and Audit
 | Milestone 1A Slice 6 | Implemented and verified locally | Device administration, secure one-time pairing, employee PIN setup/reset/login, lockout, device-bound sessions, locking, switching, and atomic audit. |
 | Milestone 1A Slice 7 | Implemented and verified locally | Branch administration, strong ETags, dependency-safe activation/deactivation, concurrency locks, bilingual UI, and corrected additive audit migration ordering. |
 | Milestone 1A Slice 8 | Implemented and verified locally | Exact read-only Audit Viewer API, protected tenant/branch scope, bounded keyset pagination, allowlisted detail metadata, bilingual UI, additive viewer indexes, OpenAPI/ADR/tests, and closure evidence. |
+| Milestone 1B Slice 1 | Implemented and verified locally | Dedicated Catalog module; organization-scoped Category/Product/Variant persistence; strong ETags; deferred PostgreSQL active-category/active-variant invariants; aggregate Variant editing; atomic Audit; and bilingual protected Catalog screens. |
 | IAM-001 User accounts | Implemented for Milestone 1A | Username/email normalization, safe profile editing, lifecycle, password and PIN credentials, multiple roles, explicit branch scope, soft historical assignments, and secure provisioning are persisted and protected. |
 | IAM-002 Authentication modes | Implemented for Milestone 1A | Management password login, paired-device employee PIN login, workstation lock, and employee switching are implemented. Optional MFA is explicitly deferred by ADR 0003. |
 | IAM-004 Roles and permissions | Implemented through Slice 4 | Stable code-owned/database-materialized permission catalogue, organization-scoped multi-role grants, database-authoritative resolution, fixed server policies, protected role administration, and bilingual presentation metadata. |
 | IAM-005 Branch scope | Implemented through Slice 5 | Explicit AssignedBranches and AllOrganizationBranches are Organization-owned; user administration performs complete replacement while completed-scope and same-organization invariants remain database enforced. |
 | AUD-001/002/003 Audit | Implemented through Slice 8 | Sensitive Slice 1A events use immutable atomic semantic audit writes; the viewer is authorized, bounded, branch-scoped, metadata-allowlisted, and returns no raw JSON or secrets. |
+| CAT-001/002 Catalog foundation | Implemented through Milestone 1B Slice 1 | Organization-scoped bilingual Categories, Products, and Variants with reserved codes, lifecycle, deterministic ordering, bounded search/filtering, PostgreSQL invariants, and no prices or operational seed data. |
 
 ## Milestone 1 Subdivision
 
 - Milestone 1A delivers Identity, Organization, Branches, Devices, Authentication, Authorization, Sessions, PIN login, and immutable audit writing.
 - Milestone 1B retains the original catalog scope: categories, products, variants, prices, modifiers, availability, POS menu endpoint, catalog screens, and the Kalm seed menu.
+- Milestone 1B Slice 1 completes only the shared Category/Product/Variant foundation. Prices, modifiers, availability, POS menu projection, and the Kalm seed menu remain open.
 - This subdivision does not remove or weaken the original Milestone 1 catalog requirements or exit criterion; the complete original exit criterion is met only after Milestone 1B.
 
 ## Milestone 0 Implementation Plan
@@ -71,3 +74,5 @@ Milestone 1A - Identity, Organization, Branches, Devices, and Audit
 - All previously released migrations remain immutable. Slice 8 adds only Audit migration `20260723010000_AddAuditViewerIndexes`, after `20260722212000_ExtendBranchAdministrationAuditActions`; no Identity, Organization, or Platform migration is required.
 - PostgreSQL remains pinned to the official 18.4 Debian image (`postgres:18.4@sha256:32ca0af8e77bfb8c6610c488e4691f83f972a3e9e64d3b02facf3ab111ad5500`). Clean and exact upgrade paths, constraints, deferred triggers, concurrent provisioning, authorization freshness, and cross-context rollback pass against PostgreSQL 18.4.
 - PostgreSQL-backed integration tests create and drop isolated test databases using the `KALM_TEST_POSTGRES_ADMIN` connection string when supplied, or the local Docker defaults otherwise.
+- Slice 1 adds Catalog migration `20260723020000_InitialCatalogFoundation` and Audit migration `20260723020500_ExtendCatalogFoundationAuditActions`, both with generated designers and LF-normalized byte baselines. The exact Milestone 1A upgrade creates no operational catalogue data and preserves existing Organization and Audit records.
+- Catalog definitions are shared at Organization scope. Branch prices and availability, Product images, Preparation Stations, Tax Profiles, Modifiers, POS menu projection, and operational Kalm menu seeding remain explicitly deferred.
