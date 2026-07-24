@@ -6,3 +6,5 @@ export const DEVICES_MANAGE_PERMISSION = "devices.manage";
 export const BRANCHES_VIEW_PERMISSION = "branches.view";
 export const BRANCHES_MANAGE_PERMISSION = "branches.manage";
 export const AUDIT_VIEW_PERMISSION = "audit.view";
+export const CATALOG_VIEW_PERMISSION = "catalog.view";
+export const CATALOG_MANAGE_PERMISSION = "catalog.manage";

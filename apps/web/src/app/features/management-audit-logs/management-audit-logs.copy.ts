@@ -16,7 +16,13 @@ const ARABIC_ACTIONS: Record<string, string> = {
   authorizationSessionsRevoked: "إلغاء جلسات التفويض", deviceRegistered: "تسجيل جهاز", deviceUpdated: "تحديث جهاز",
   devicePairingChallengeCreated: "إنشاء طلب إقران جهاز", devicePaired: "إقران جهاز", deviceCredentialRotated: "تدوير بيانات الجهاز",
   deviceRevoked: "إلغاء جهاز", userPinSet: "تعيين رمز الموظف", userPinReset: "إعادة تعيين رمز الموظف",
-  pinLoginSucceeded: "نجاح الدخول بالرمز", pinLoginFailed: "فشل الدخول بالرمز", workstationLocked: "قفل محطة العمل"
+  pinLoginSucceeded: "نجاح الدخول بالرمز", pinLoginFailed: "فشل الدخول بالرمز", workstationLocked: "قفل محطة العمل",
+  categoryCreated: "إنشاء تصنيف", categoryUpdated: "تحديث تصنيف", categoryActivated: "تفعيل تصنيف",
+  categoryArchived: "أرشفة تصنيف", categoriesReordered: "إعادة ترتيب التصنيفات",
+  productCreated: "إنشاء منتج", productUpdated: "تحديث منتج", productActivated: "تفعيل منتج",
+  productArchived: "أرشفة منتج", variantCreated: "إنشاء متغير", variantUpdated: "تحديث متغير",
+  variantActivated: "تفعيل متغير", variantArchived: "أرشفة متغير", variantsReordered: "إعادة ترتيب المتغيرات",
+  catalogMutationRejected: "رفض تعديل الكتالوج"
 };
 
 function humanize(code: string): string {

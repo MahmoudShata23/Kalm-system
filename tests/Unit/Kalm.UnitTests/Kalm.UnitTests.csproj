@@ -6,6 +6,7 @@
     <ProjectReference Include="..\..\..\src\Modules\Kalm.Audit\Kalm.Audit.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Kalm.Identity\Kalm.Identity.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Kalm.Identity.Infrastructure\Kalm.Identity.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Kalm.Catalog\Kalm.Catalog.csproj" />
   </ItemGroup>
 
   <ItemGroup>

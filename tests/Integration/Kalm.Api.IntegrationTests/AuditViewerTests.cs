@@ -124,6 +124,15 @@ public sealed class AuditViewerTests
         Assert.DoesNotContain("beforeJson", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("afterJson", json, StringComparison.OrdinalIgnoreCase);
 
+        AuditLogDetailResponse catalogDetail = Assert.IsType<AuditLogDetailResponse>(
+            await queries.GetAsync(seed.OrganizationId, all, seed.CatalogMetadataAuditId, CancellationToken.None));
+        Assert.Equal(["englishDescription", "sku"], catalogDetail.Metadata?.ChangedFields);
+        string catalogJson = JsonSerializer.Serialize(catalogDetail);
+        Assert.DoesNotContain("secret recipe wording", catalogJson, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("futureSecret", catalogJson, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("password", catalogJson, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("barcode", catalogJson, StringComparison.OrdinalIgnoreCase);
+
         AuditViewerQueryException tooLarge = await Assert.ThrowsAsync<AuditViewerQueryException>(() => queries.ListAsync(
             seed.OrganizationId, all, Filter() with { FromUtc = Now.AddDays(-91) }, CancellationToken.None));
         Assert.Equal("audit.interval_too_large", tooLarge.Code);
@@ -172,6 +181,7 @@ public sealed class AuditViewerTests
         Guid branchlessAudit = Guid.NewGuid();
         Guid otherOrganizationAudit = Guid.NewGuid();
         Guid metadataAudit = Guid.NewGuid();
+        Guid catalogMetadataAudit = Guid.NewGuid();
         await using (AuditDbContext context = Audit(connectionString))
         {
             var entries = new List<AuditEntry>();
@@ -186,10 +196,14 @@ public sealed class AuditViewerTests
                 AuditAction.BranchAdministrationRejected, "Branch", branch1, AuditResult.Denied, "branch.dependencies_active", "corr-metadata",
                 "{\"status\":\"active\",\"email\":\"private@example.com\"}",
                 "{\"dependencyCounts\":{\"registeredDeviceCount\":1,\"activeDeviceCount\":2,\"activeCredentialCount\":3,\"activeSessionCount\":4,\"activeUserAssignmentCount\":5},\"password\":\"never\",\"futureSecret\":\"omit\"}", null, null));
+            entries.Add(AuditEntry.Create(catalogMetadataAudit, Now, organizationId, null, null, userId, AuditActorType.User, null,
+                AuditAction.ProductUpdated, "Product", Guid.NewGuid(), AuditResult.Succeeded, null, "corr-catalog-metadata",
+                "{\"englishDescription\":\"old secret recipe wording\",\"barcode\":\"622100000001\"}",
+                "{\"product\":{\"englishDescription\":\"new secret recipe wording\"},\"changedFields\":[\"sku\",\"englishDescription\",\"futureSecret\"],\"password\":\"never\"}", null, null));
             context.AuditEntries.AddRange(entries);
             await context.SaveChangesAsync();
         }
-        return new Seed(organizationId, branch1, branch2, branch2Audit, branchlessAudit, otherOrganizationAudit, metadataAudit);
+        return new Seed(organizationId, branch1, branch2, branch2Audit, branchlessAudit, otherOrganizationAudit, metadataAudit, catalogMetadataAudit);
     }
 
     private static AuditEntry Entry(Guid id, Guid organizationId, Guid? branchId, Guid? actorId, AuditAction action, string correlation)
@@ -203,7 +217,15 @@ public sealed class AuditViewerTests
     private static AuditDbContext Audit(string connectionString) => new(new DbContextOptionsBuilder<AuditDbContext>()
         .UseNpgsql(connectionString, options => options.MigrationsHistoryTable("__ef_migrations_history", "audit")).Options);
 
-    private sealed record Seed(Guid OrganizationId, Guid Branch1, Guid Branch2, Guid Branch2AuditId, Guid BranchlessAuditId, Guid OtherOrganizationAuditId, Guid MetadataAuditId);
+    private sealed record Seed(
+        Guid OrganizationId,
+        Guid Branch1,
+        Guid Branch2,
+        Guid Branch2AuditId,
+        Guid BranchlessAuditId,
+        Guid OtherOrganizationAuditId,
+        Guid MetadataAuditId,
+        Guid CatalogMetadataAuditId);
 
     private sealed class TestDatabase : IAsyncDisposable
     {

@@ -1,5 +1,5 @@
 import { Routes } from "@angular/router";
-import { accessDeniedGuard, auditViewGuard, branchesManageGuard, branchesViewGuard, devicesManageGuard, loginGuard, managementGuard, rolesManageGuard, usersManageGuard, usersViewGuard } from "./core/auth/management-auth.guard";
+import { accessDeniedGuard, auditViewGuard, branchesManageGuard, branchesViewGuard, catalogManageGuard, catalogViewGuard, devicesManageGuard, loginGuard, managementGuard, rolesManageGuard, usersManageGuard, usersViewGuard } from "./core/auth/management-auth.guard";
 
 export const routes: Routes = [
   { path: "", pathMatch: "full", redirectTo: "management/login" },
@@ -29,6 +29,42 @@ export const routes: Routes = [
         path: "",
         loadComponent: () => import("./features/management-shell/management-home.component")
           .then(({ ManagementHomeComponent }) => ManagementHomeComponent)
+      },
+      {
+        path: "catalog/categories",
+        canActivate: [catalogViewGuard],
+        loadComponent: () => import("./features/management-catalog/categories-list.component")
+          .then(({ CategoriesListComponent }) => CategoriesListComponent)
+      },
+      {
+        path: "catalog/categories/new",
+        canActivate: [catalogManageGuard],
+        loadComponent: () => import("./features/management-catalog/category-editor.component")
+          .then(({ CategoryEditorComponent }) => CategoryEditorComponent)
+      },
+      {
+        path: "catalog/categories/:categoryId",
+        canActivate: [catalogViewGuard],
+        loadComponent: () => import("./features/management-catalog/category-editor.component")
+          .then(({ CategoryEditorComponent }) => CategoryEditorComponent)
+      },
+      {
+        path: "catalog/products",
+        canActivate: [catalogViewGuard],
+        loadComponent: () => import("./features/management-catalog/products-list.component")
+          .then(({ ProductsListComponent }) => ProductsListComponent)
+      },
+      {
+        path: "catalog/products/new",
+        canActivate: [catalogManageGuard],
+        loadComponent: () => import("./features/management-catalog/product-editor.component")
+          .then(({ ProductEditorComponent }) => ProductEditorComponent)
+      },
+      {
+        path: "catalog/products/:productId",
+        canActivate: [catalogViewGuard],
+        loadComponent: () => import("./features/management-catalog/product-editor.component")
+          .then(({ ProductEditorComponent }) => ProductEditorComponent)
       },
       {
         path: "roles",

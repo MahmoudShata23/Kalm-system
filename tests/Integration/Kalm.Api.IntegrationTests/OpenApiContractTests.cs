@@ -96,6 +96,51 @@ public sealed class OpenApiContractTests : IClassFixture<WebApplicationFactory<P
         Assert.All(paths, path => Assert.Equal(["get"], path.Value.EnumerateObject().Select(operation => operation.Name).ToArray()));
     }
 
+    [Fact]
+    public async Task CatalogAdministration_ExposesOnlyTheApprovedAggregateEndpointSet()
+    {
+        using var client = _factory.CreateClient();
+        using var response = await client.GetAsync("/openapi/v1.json", CancellationToken.None);
+        response.EnsureSuccessStatusCode();
+        await using var content = await response.Content.ReadAsStreamAsync(CancellationToken.None);
+        using var document = await JsonDocument.ParseAsync(content, cancellationToken: CancellationToken.None);
+        JsonElement paths = document.RootElement.GetProperty("paths");
+        JsonProperty[] catalog = paths.EnumerateObject()
+            .Where(path => path.Name.StartsWith("/api/v1/management/catalog/", StringComparison.Ordinal))
+            .OrderBy(path => path.Name, StringComparer.Ordinal)
+            .ToArray();
+        Assert.Equal(
+            [
+                "/api/v1/management/catalog/categories",
+                "/api/v1/management/catalog/categories/order",
+                "/api/v1/management/catalog/categories/{categoryId}",
+                "/api/v1/management/catalog/categories/{categoryId}/activate",
+                "/api/v1/management/catalog/categories/{categoryId}/archive",
+                "/api/v1/management/catalog/products",
+                "/api/v1/management/catalog/products/options",
+                "/api/v1/management/catalog/products/{productId}",
+                "/api/v1/management/catalog/products/{productId}/activate",
+                "/api/v1/management/catalog/products/{productId}/archive"
+            ],
+            catalog.Select(path => path.Name));
+        Assert.Equal(["get", "post"], paths.GetProperty("/api/v1/management/catalog/categories").EnumerateObject().Select(value => value.Name));
+        Assert.Equal(["put"], paths.GetProperty("/api/v1/management/catalog/categories/order").EnumerateObject().Select(value => value.Name));
+        Assert.Equal(["get", "put"], paths.GetProperty("/api/v1/management/catalog/categories/{categoryId}").EnumerateObject().Select(value => value.Name));
+        Assert.Equal(["get", "post"], paths.GetProperty("/api/v1/management/catalog/products").EnumerateObject().Select(value => value.Name));
+        Assert.Equal(["get", "put"], paths.GetProperty("/api/v1/management/catalog/products/{productId}").EnumerateObject().Select(value => value.Name));
+        Assert.DoesNotContain(catalog, path => path.Name.Contains("/variants", StringComparison.Ordinal));
+        Assert.DoesNotContain(catalog.SelectMany(path => path.Value.EnumerateObject()), operation => operation.Name == "delete");
+
+        foreach (string mutationPath in catalog.Select(path => path.Name).Where(path =>
+                     path.EndsWith("/order", StringComparison.Ordinal)
+                     || path.EndsWith("/activate", StringComparison.Ordinal)
+                     || path.EndsWith("/archive", StringComparison.Ordinal)))
+        {
+            JsonElement operation = paths.GetProperty(mutationPath).EnumerateObject().Single().Value;
+            Assert.True(operation.GetProperty("responses").TryGetProperty("429", out _));
+        }
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
